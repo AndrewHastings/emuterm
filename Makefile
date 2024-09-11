@@ -4,8 +4,8 @@
 
 CFLAGS=-g -fsanitize=address -Wunused-variable
 
-HDRS = 
-OBJS = emuterm.o
+HDRS = emuterm.h input.h output.h
+OBJS = emuterm.o input.o output.o
 LIBS = -lutil
 
 emuterm: $(OBJS)
