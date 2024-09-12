@@ -13,4 +13,7 @@
 #define TERM_LINES	16
 #define TERM_COLUMNS	80
 
+extern int uprintf(char *fmt, ...);
+#pragma printflike uprintf
+
 #endif /* _EMUTERM_H */

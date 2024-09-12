@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <string.h>
+#include <stdarg.h>
 #include <errno.h>
 #include <termios.h>
 #include <pty.h>
@@ -19,6 +20,20 @@
 #include "emuterm.h"
 #include "input.h"
 #include "output.h"
+
+
+/* unbuffered printf */
+int uprintf(char *fmt, ...)
+{
+	va_list ap;
+	int rc;
+	char buf[256];
+
+	va_start(ap, fmt);
+	rc = vsnprintf(buf, sizeof buf, fmt, ap);
+	va_end(ap);
+	return write(STDOUT_FILENO, buf, rc);
+}
 
 
 void cleanup(int sig)
@@ -46,6 +61,8 @@ void pty_master(int mfd, pid_t cpid)
 	flags = fcntl(STDIN_FILENO, F_GETFL);
 	fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
 
+	uprintf("emuterm: escape character is ~\r\n");
+
 	for (;;) {
 		fd_set rfds;
 
@@ -66,6 +83,10 @@ void pty_master(int mfd, pid_t cpid)
 	}
 
 	cleanup(0);
+
+	/* Ensure child is dead. */
+	signal(SIGCHLD, SIG_DFL);
+	kill(cpid, SIGTERM);
 }
 
 

@@ -7,7 +7,6 @@
  */
 
 #include <stdio.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -24,21 +23,6 @@
 #define ANSI_LEFT	    "\033[D"
 #define ANSI_HOME	    "\033[H"
 #define ANSI_CLEAR	    "\033[H\033[2J"
-
-
-/* unbuffered printf */
-int uprintf(char *fmt, ...)
-{
-	va_list ap;
-	int rc;
-	char buf[256];
-
-	va_start(ap, fmt);
-	rc = vsnprintf(buf, sizeof buf, fmt, ap);
-	va_end(ap);
-	return write(STDOUT_FILENO, buf, rc);
-}
-#pragma printflike uprintf
 
 
 void omode(int emulate)
