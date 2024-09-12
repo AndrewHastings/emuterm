@@ -26,8 +26,10 @@ void cleanup(int sig)
 	/* Restore user terminal size, leave raw mode. */
 	omode(0);
 
-	if (sig)
+	if (sig) {
+		psignal(sig, NULL);
 		exit(1);
+	}
 }
 
 
@@ -35,8 +37,9 @@ void pty_master(int mfd, pid_t cpid)
 {
 	int flags;
 
-	/* Cleanup when child exits if we don't get some other error first. */
+	/* Cleanup if we don't get some other error first. */
 	signal(SIGCHLD, cleanup);
+	signal(SIGTERM, cleanup);
 
 	/* Resize user terminal, enter raw mode, don't block on tty input. */
 	omode(1);
