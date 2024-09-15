@@ -131,9 +131,12 @@ int handle_input(int mfd)
 			uprintf("~.      quit\r\n");
 			uprintf("~^Z     suspend\r\n");
 			uprintf("~r FILE send file\r\n");
+			uprintf("~w FILE record raw output\r\n");
+			uprintf("~w      stop recording\r\n");
 			break;
 
 		    case '.': case 'q':
+			save_output(NULL);
 			uprintf("emuterm: exiting\r\n");
 			return -2;
 			break;
@@ -148,6 +151,10 @@ int handle_input(int mfd)
 
 		    case 'r':
 			send_file(cmd+3);
+			break;
+
+		    case 'w':
+			save_output(cmd+3);
 			break;
 
 		    default:

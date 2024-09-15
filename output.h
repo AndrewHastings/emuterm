@@ -11,5 +11,6 @@
 
 extern void omode(int emulate);
 extern int handle_output(int mfd);
+extern void save_output(char *path);
 
 #endif /* _OUTPUT_H */

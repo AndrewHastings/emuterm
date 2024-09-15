@@ -10,6 +10,9 @@
 #include <unistd.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <fcntl.h>
+#include <string.h>
+#include <errno.h>
 #include "emuterm.h"
 #include "output.h"
 
@@ -60,6 +63,40 @@ void omode(int emulate)
 }
 
 
+int savefd = -1;
+
+void save_output(char *path)
+{
+	if (savefd >= 0) {
+		if (!path || !path[0]) {
+			uprintf("Recording stopped\r\n");
+			close(savefd);
+			savefd = -1;
+			return;
+		}
+
+		uprintf("Recording already in progress, use ~w to stop\r\n");
+		return;
+	}
+
+	if (!path)
+		return;
+
+	if (path[0] == ' ')	/* skip optional space after "~w" */
+		path++;
+	if (!path[0]) {
+		uprintf("No recording in progress, use ~? for help\r\n");
+		return;
+	}
+
+	if ((savefd = open(path, O_WRONLY|O_CREAT|O_APPEND, 0666)) < 0) {
+		uprintf("%s: %s\r\n", path, strerror(errno));
+		return;
+	}
+	uprintf("Recording to '%s'\r\n", path);
+}
+
+
 /* read output from slave pty, write to user */
 int handle_output(int mfd)
 {
@@ -68,6 +105,8 @@ int handle_output(int mfd)
 
 	if ((rc = read(mfd, buf, sizeof buf)) <= 0)
 		return rc;
+	if (savefd >= 0)
+		write(savefd, buf, rc);
 	for (i = 0; i < rc; i++) {
 		c = buf[i] & 0x7f;
 		switch (c) {

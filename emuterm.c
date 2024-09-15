@@ -65,7 +65,9 @@ int uprintf(char *fmt, ...)
 
 void cleanup(int sig)
 {
-	/* Restore user terminal size, leave raw mode. */
+	/* Stop recording, restore user terminal size, leave raw mode. */
+	uprintf("\r\n");
+	save_output(NULL);
 	omode(0);
 
 	if (sig) {
