@@ -113,8 +113,10 @@ int handle_input(int mfd)
 		}
 
 		/* Flush buffers. */
-		if (wp - wbuf)
-			rv = write(mfd, wbuf, wp-wbuf);
+		if (wp - wbuf) {
+			if (write(mfd, wbuf, wp-wbuf) < 0)
+				rv = -1;
+		}
 		if (op - obuf)
 			write(STDOUT_FILENO, obuf, op-obuf);
 		wp = wbuf;
@@ -128,6 +130,7 @@ int handle_input(int mfd)
 			uprintf("~?      help\r\n");
 			uprintf("~.      quit\r\n");
 			uprintf("~^Z     suspend\r\n");
+			uprintf("~r FILE send file\r\n");
 			break;
 
 		    case '.': case 'q':
@@ -143,6 +146,10 @@ int handle_input(int mfd)
 			omode(1);
 			break;
 
+		    case 'r':
+			send_file(cmd+3);
+			break;
+
 		    default:
 			uprintf("emuterm: unrecognized command %s, "
 				"~? for help\r\n", cp);
@@ -151,8 +158,10 @@ int handle_input(int mfd)
 	}
 
 	/* Flush buffers. */
-	if (wp - wbuf)
-		rv = write(mfd, wbuf, wp-wbuf);
+	if (wp - wbuf) {
+		if (write(mfd, wbuf, wp-wbuf) < 0)
+			rv = -1;
+	}
 	if (op - obuf)
 		write(STDOUT_FILENO, obuf, op-obuf);
 	return rv;

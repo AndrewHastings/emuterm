@@ -15,11 +15,38 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <termios.h>
+#include <poll.h>
 #include <pty.h>
-#include <sys/select.h>
 #include "emuterm.h"
 #include "input.h"
 #include "output.h"
+
+
+int sendfd = -1;
+
+void send_file(char *path)
+{
+	if (path[0] == ' ')	/* skip optional space after "~r" */
+		path++;
+	if (!path[0]) {
+		uprintf("emuterm: ~r requires a pathname\r\n");
+		return;
+	}
+
+	if ((sendfd = open(path, O_RDONLY)) < 0) {
+		uprintf("%s: %s\r\n", path, strerror(errno));
+		return;
+	}
+	uprintf("Sending '%s'\r\n", path);
+}
+
+
+void end_send(struct pollfd *pfds)
+{
+	close(sendfd);
+	sendfd = -1;
+	pfds[0].events = POLLIN;
+}
 
 
 /* unbuffered printf */
@@ -50,7 +77,15 @@ void cleanup(int sig)
 
 void pty_master(int mfd, pid_t cpid)
 {
+	struct pollfd pfds[2];
+	int npoll;
 	int flags;
+
+	pfds[0].fd = mfd;
+	pfds[0].events = POLLIN;
+	pfds[1].fd = STDIN_FILENO;
+	pfds[1].events = POLLIN;
+	npoll = 2;
 
 	/* Cleanup if we don't get some other error first. */
 	signal(SIGCHLD, cleanup);
@@ -64,22 +99,54 @@ void pty_master(int mfd, pid_t cpid)
 	uprintf("emuterm: escape character is ~\r\n");
 
 	for (;;) {
-		fd_set rfds;
 
-		FD_ZERO(&rfds);
-		FD_SET(STDIN_FILENO, &rfds);
-		FD_SET(mfd, &rfds);
-
-		if (select(mfd+1, &rfds, NULL, NULL, NULL) < 0)
+		if (poll(pfds, npoll, -1) < 0)
 			break;
 
-		if (FD_ISSET(STDIN_FILENO, &rfds))
-			if (handle_input(mfd) < 0)
-				break;
-
-		if (FD_ISSET(mfd, &rfds))
+		/* Output from slave? */
+		if (pfds[0].revents & (POLLIN|POLLERR))
 			if (handle_output(mfd) < 0)
 				break;
+
+		/* Not sending a file, handle user input normally. */
+		if (sendfd < 0) {
+			if (pfds[1].revents & (POLLIN|POLLERR))
+				if (handle_input(mfd) < 0)
+					break;
+			if (sendfd < 0)
+				continue;
+
+			/* Now sending a file, set up poll. */
+			pfds[0].events = POLLIN|POLLOUT;
+			continue;
+		}
+
+		/* Any user input terminates file sending. */
+		if (pfds[1].revents & (POLLIN|POLLERR)) {
+			uprintf("\r\nUser terminated file send.\r\n");
+			end_send(pfds);
+			continue;
+		}
+
+		/* Slave ready for input from file? */
+		if (pfds[0].revents & POLLOUT) {
+			char buf[256];
+			int ic;
+
+			ic = read(sendfd, buf, sizeof buf);
+			if (ic <= 0) {
+				if (ic < 0)
+					uprintf("\r\nread: %s\r\n",
+						strerror(errno));
+				end_send(pfds);
+				continue;
+			}
+			if (write(mfd, buf, ic) < 0) {
+				uprintf("\r\nWrite to child failed: %s.\r\n",
+					strerror(errno));
+				break;
+			}
+		}
 	}
 
 	cleanup(0);
