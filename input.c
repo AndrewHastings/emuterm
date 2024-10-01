@@ -8,6 +8,7 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <time.h>
 #define __USE_GNU /* for sighandler_t */
 #include <signal.h>
 #include "emuterm.h"
@@ -138,7 +139,7 @@ int handle_input(int mfd)
 
 		    case '.': case 'q':
 			save_output(NULL);
-			dprintf(STDOUT_FILENO, "emuterm: exiting\r\n");
+			dprintf(STDOUT_FILENO, "%s: exiting\r\n", prog);
 			return -2;
 			break;
 
@@ -159,8 +160,8 @@ int handle_input(int mfd)
 			break;
 
 		    default:
-			dprintf(STDOUT_FILENO, "emuterm: unrecognized command %s, "
-				"~? for help\r\n", cp);
+			dprintf(STDOUT_FILENO, "%s: unrecognized command %s, "
+				"~? for help\r\n", prog, cp);
 			break;
 		}
 	}

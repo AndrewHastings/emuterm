@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
@@ -29,12 +30,12 @@
 #define ANSI_SCROLL_UP	    "\033[S"
 
 
-void omode(int emulate)
+void omode(int raw)
 {
 	static struct termios otio;
 	static struct winsize ows;
 
-	if (emulate) {
+	if (raw) {
 		struct termios ntio;
 
 		/* save tty settings and enter raw mode */
@@ -43,20 +44,25 @@ void omode(int emulate)
 		cfmakeraw(&ntio);
 		tcsetattr(STDIN_FILENO, TCSANOW, &ntio);
 
-		/* save window size, then resize user terminal */
-		ioctl(STDIN_FILENO, TIOCGWINSZ, &ows);
-#ifdef notyet	/* for some reason this doesn't always work */
-		dprintf(STDOUT_FILENO, ANSI_RESIZE, TERM_LINES, TERM_COLUMNS);
-#else
-		dprintf(STDOUT_FILENO, ANSI_SCROLL_REGION, TERM_LINES);
-#endif
+		if (term_type) {
+			/* save window size, then resize user terminal */
+			ioctl(STDIN_FILENO, TIOCGWINSZ, &ows);
+			if (resize_win)
+				dprintf(STDOUT_FILENO, ANSI_RESIZE,
+					term_lines, term_cols);
+			else
+				dprintf(STDOUT_FILENO, ANSI_SCROLL_REGION,
+					term_lines);
+		}
 	} else {
-		/* restore user terminal size */
-#ifdef notyet
-		dprintf(STDOUT_FILENO, ANSI_RESIZE, ows.ws_row, ows.ws_col);
-#else
-		dprintf(STDOUT_FILENO, ANSI_SCROLL_RESET);
-#endif
+		if (term_type) {
+			/* restore user terminal size */
+			if (resize_win)
+				dprintf(STDOUT_FILENO, ANSI_RESIZE,
+					ows.ws_row, ows.ws_col);
+			else
+				dprintf(STDOUT_FILENO, ANSI_SCROLL_RESET);
+		}
 
 		/* restore tty settings */
 		tcsetattr(STDIN_FILENO, TCSANOW, &otio);
@@ -111,6 +117,13 @@ int handle_output(int mfd)
 	if (savefd >= 0)
 		write(savefd, buf, rc);
 	for (i = 0; i < rc; i++) {
+		if (odelay.tv_nsec)
+			(void) nanosleep(&odelay, NULL);
+		if (!term_type) {
+			if ((rv = write(STDOUT_FILENO, buf+i, 1)) < 0)
+				break;
+			continue;
+		}
 		c = buf[i] & 0x7f;
 		switch (c) {
 		    case '\010':	/* ^H */
@@ -145,7 +158,7 @@ int handle_output(int mfd)
 			break;
 		}
 		if (rv < 0)
-			return rv;
+			break;
 	}
 	return rv;
 }

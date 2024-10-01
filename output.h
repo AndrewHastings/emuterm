@@ -9,7 +9,7 @@
 #ifndef _OUTPUT_H
 #define _OUTPUT_H 1
 
-extern void omode(int emulate);
+extern void omode(int raw);
 extern int handle_output(int mfd);
 extern void save_output(char *path);
 

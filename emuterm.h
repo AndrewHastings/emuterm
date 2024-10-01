@@ -9,10 +9,11 @@
 #ifndef _EMUTERM_H
 #define _EMUTERM_H 1
 
-#define TERM_TYPE	"digilog33"
-#define TERM_LINES	16
-#define TERM_COLUMNS	80
-
+extern char *prog;
+extern int resize_win;
+extern int term_cols, term_lines;
+extern struct timespec odelay;
+extern char *term_type;
 extern void send_file(char *path);
 
 #endif /* _EMUTERM_H */
