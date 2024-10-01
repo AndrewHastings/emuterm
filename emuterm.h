@@ -14,7 +14,5 @@
 #define TERM_COLUMNS	80
 
 extern void send_file(char *path);
-extern int uprintf(char *fmt, ...);
-#pragma printflike uprintf
 
 #endif /* _EMUTERM_H */

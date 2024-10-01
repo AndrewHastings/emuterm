@@ -12,7 +12,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <string.h>
-#include <stdarg.h>
+#include <stdio.h>
 #include <errno.h>
 #include <termios.h>
 #include <poll.h>
@@ -29,15 +29,15 @@ void send_file(char *path)
 	if (path[0] == ' ')	/* skip optional space after "~r" */
 		path++;
 	if (!path[0]) {
-		uprintf("emuterm: ~r requires a pathname\r\n");
+		dprintf(STDOUT_FILENO, "emuterm: ~r requires a pathname\r\n");
 		return;
 	}
 
 	if ((sendfd = open(path, O_RDONLY)) < 0) {
-		uprintf("%s: %s\r\n", path, strerror(errno));
+		dprintf(STDOUT_FILENO, "%s: %s\r\n", path, strerror(errno));
 		return;
 	}
-	uprintf("Sending '%s'\r\n", path);
+	dprintf(STDOUT_FILENO, "Sending '%s'\r\n", path);
 }
 
 
@@ -49,24 +49,10 @@ void end_send(struct pollfd *pfds)
 }
 
 
-/* unbuffered printf */
-int uprintf(char *fmt, ...)
-{
-	va_list ap;
-	int rc;
-	char buf[256];
-
-	va_start(ap, fmt);
-	rc = vsnprintf(buf, sizeof buf, fmt, ap);
-	va_end(ap);
-	return write(STDOUT_FILENO, buf, rc);
-}
-
-
 void cleanup(int sig)
 {
 	/* Stop recording, restore user terminal size, leave raw mode. */
-	uprintf("\r\n");
+	dprintf(STDOUT_FILENO, "\r\n");
 	save_output(NULL);
 	omode(0);
 
@@ -98,7 +84,7 @@ void pty_master(int mfd, pid_t cpid)
 	flags = fcntl(STDIN_FILENO, F_GETFL);
 	fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
 
-	uprintf("emuterm: escape character is ~\r\n");
+	dprintf(STDOUT_FILENO, "emuterm: escape character is ~\r\n");
 
 	for (;;) {
 
@@ -125,7 +111,8 @@ void pty_master(int mfd, pid_t cpid)
 
 		/* Any user input terminates file sending. */
 		if (pfds[1].revents & (POLLIN|POLLERR)) {
-			uprintf("\r\nUser terminated file send.\r\n");
+			dprintf(STDOUT_FILENO,
+				"\r\nUser terminated file send.\r\n");
 			end_send(pfds);
 			continue;
 		}
@@ -138,13 +125,15 @@ void pty_master(int mfd, pid_t cpid)
 			ic = read(sendfd, buf, sizeof buf);
 			if (ic <= 0) {
 				if (ic < 0)
-					uprintf("\r\nread: %s\r\n",
+					dprintf(STDOUT_FILENO,
+					        "\r\nread: %s\r\n",
 						strerror(errno));
 				end_send(pfds);
 				continue;
 			}
 			if (write(mfd, buf, ic) < 0) {
-				uprintf("\r\nWrite to child failed: %s.\r\n",
+				dprintf(STDOUT_FILENO,
+					"\r\nWrite to child failed: %s.\r\n",
 					strerror(errno));
 				break;
 			}

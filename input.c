@@ -7,6 +7,7 @@
  */
 
 #include <unistd.h>
+#include <stdio.h>
 #define __USE_GNU /* for sighandler_t */
 #include <signal.h>
 #include "emuterm.h"
@@ -126,18 +127,18 @@ int handle_input(int mfd)
 		/* Handle command. */
 		switch (c = cmd[2]) {
 		    case '?': case 'h':
-			uprintf("~~      send ~\r\n");
-			uprintf("~?      help\r\n");
-			uprintf("~.      quit\r\n");
-			uprintf("~^Z     suspend\r\n");
-			uprintf("~r FILE send file\r\n");
-			uprintf("~w FILE record raw output\r\n");
-			uprintf("~w      stop recording\r\n");
+			dprintf(STDOUT_FILENO, "~~      send ~\r\n"
+					       "~?      help\r\n"
+					       "~.      quit\r\n"
+					       "~^Z     suspend\r\n"
+					       "~r FILE send file\r\n"
+					       "~w FILE record raw output\r\n"
+					       "~w      stop recording\r\n");
 			break;
 
 		    case '.': case 'q':
 			save_output(NULL);
-			uprintf("emuterm: exiting\r\n");
+			dprintf(STDOUT_FILENO, "emuterm: exiting\r\n");
 			return -2;
 			break;
 
@@ -158,7 +159,7 @@ int handle_input(int mfd)
 			break;
 
 		    default:
-			uprintf("emuterm: unrecognized command %s, "
+			dprintf(STDOUT_FILENO, "emuterm: unrecognized command %s, "
 				"~? for help\r\n", cp);
 			break;
 		}

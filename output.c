@@ -45,16 +45,16 @@ void omode(int emulate)
 		/* save window size, then resize user terminal */
 		ioctl(STDIN_FILENO, TIOCGWINSZ, &ows);
 #ifdef notyet	/* for some reason this doesn't always work */
-		uprintf(ANSI_RESIZE, TERM_LINES, TERM_COLUMNS);
+		dprintf(STDOUT_FILENO, ANSI_RESIZE, TERM_LINES, TERM_COLUMNS);
 #else
-		uprintf(ANSI_SCROLL_REGION, TERM_LINES);
+		dprintf(STDOUT_FILENO, ANSI_SCROLL_REGION, TERM_LINES);
 #endif
 	} else {
 		/* restore user terminal size */
 #ifdef notyet
-		uprintf(ANSI_RESIZE, ows.ws_row, ows.ws_col);
+		dprintf(STDOUT_FILENO, ANSI_RESIZE, ows.ws_row, ows.ws_col);
 #else
-		uprintf(ANSI_SCROLL_RESET);
+		dprintf(STDOUT_FILENO, ANSI_SCROLL_RESET);
 #endif
 
 		/* restore tty settings */
@@ -69,13 +69,14 @@ void save_output(char *path)
 {
 	if (savefd >= 0) {
 		if (!path || !path[0]) {
-			uprintf("Recording stopped\r\n");
+			dprintf(STDOUT_FILENO, "Recording stopped\r\n");
 			close(savefd);
 			savefd = -1;
 			return;
 		}
 
-		uprintf("Recording already in progress, use ~w to stop\r\n");
+		dprintf(STDOUT_FILENO, "Recording already in progress, "
+				       "use ~w to stop\r\n");
 		return;
 	}
 
@@ -85,15 +86,16 @@ void save_output(char *path)
 	if (path[0] == ' ')	/* skip optional space after "~w" */
 		path++;
 	if (!path[0]) {
-		uprintf("No recording in progress, use ~? for help\r\n");
+		dprintf(STDOUT_FILENO, "No recording in progress, "
+				       "use ~? for help\r\n");
 		return;
 	}
 
 	if ((savefd = open(path, O_WRONLY|O_CREAT|O_APPEND, 0666)) < 0) {
-		uprintf("%s: %s\r\n", path, strerror(errno));
+		dprintf(STDOUT_FILENO, "%s: %s\r\n", path, strerror(errno));
 		return;
 	}
-	uprintf("Recording to '%s'\r\n", path);
+	dprintf(STDOUT_FILENO, "Recording to '%s'\r\n", path);
 }
 
 
@@ -111,23 +113,23 @@ int handle_output(int mfd)
 		c = buf[i] & 0x7f;
 		switch (c) {
 		    case '\010':	/* ^H */
-			rv = uprintf(ANSI_LEFT);
+			rv = dprintf(STDOUT_FILENO, ANSI_LEFT);
 			break;
 
 		    case '\011':	/* ^I */
-			rv = uprintf(ANSI_RIGHT);
+			rv = dprintf(STDOUT_FILENO, ANSI_RIGHT);
 			break;
 
 		    case '\013':	/* ^K */
-			rv = uprintf(ANSI_UP);
+			rv = dprintf(STDOUT_FILENO, ANSI_UP);
 			break;
 
 		    case '\014':	/* ^L */
-			rv = uprintf(ANSI_CLEAR);
+			rv = dprintf(STDOUT_FILENO, ANSI_CLEAR);
 			break;
 
 		    case '\016':	/* ^N */
-			rv = uprintf(ANSI_HOME);
+			rv = dprintf(STDOUT_FILENO, ANSI_HOME);
 			break;
 
 		    case '\033':	/* ESC */
