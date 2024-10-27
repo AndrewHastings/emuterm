@@ -26,6 +26,7 @@
 #define ANSI_LEFT	    "\033[D"
 #define ANSI_HOME	    "\033[H"
 #define ANSI_CLEAR	    "\033[H\033[2J"
+#define ANSI_SCROLL_UP	    "\033[S"
 
 
 void omode(int emulate)
@@ -130,6 +131,10 @@ int handle_output(int mfd)
 
 		    case '\016':	/* ^N */
 			rv = dprintf(STDOUT_FILENO, ANSI_HOME);
+			break;
+
+		    case '\020':	/* ^P */
+			rv = dprintf(STDOUT_FILENO, ANSI_SCROLL_UP);
 			break;
 
 		    case '\033':	/* ESC */
