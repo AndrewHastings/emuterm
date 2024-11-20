@@ -16,7 +16,7 @@
  */
 
 /*
- * Emulate an old terminal by handling its output escape sequences.
+ * Emulate an old terminal by handling its output control sequences.
  */
 
 #ifndef _EMUTERM_H

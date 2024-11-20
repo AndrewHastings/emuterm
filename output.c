@@ -16,7 +16,7 @@
  */
 
 /*
- * Translate output from emulated terminal into ANSI escape sequences.
+ * Translate output from emulated terminal into xterm control sequences.
  */
 
 #include <stdio.h>
@@ -40,7 +40,13 @@
 #define ANSI_LEFT	    "\033[D"
 #define ANSI_HOME	    "\033[H"
 #define ANSI_CLEAR	    "\033[H\033[2J"
+#define ANSI_SET_ROW	    "\033[%dH"
 #define ANSI_SCROLL_UP	    "\033[S"
+#define DEC_AUTOWRAP_ON	    "\033[?7h"
+#define DEC_AUTOWRAP_OFF    "\033[?7l"
+#define DEC_MARGINS_ON	    "\033[?69h"
+#define DEC_MARGINS_OFF	    "\033[?69l"
+#define DEC_MARGINS_SET	    "\033[1;%ds"
 
 
 void omode(int raw)
@@ -58,23 +64,50 @@ void omode(int raw)
 		tcsetattr(STDIN_FILENO, TCSANOW, &ntio);
 
 		if (term_type) {
-			/* save window size, then resize user terminal */
 			ioctl(STDIN_FILENO, TIOCGWINSZ, &ows);
+
+			/* resize user terminal */
 			if (resize_win)
 				dprintf(STDOUT_FILENO, ANSI_RESIZE,
 					term_lines, term_cols);
-			else
-				dprintf(STDOUT_FILENO, ANSI_SCROLL_REGION,
+
+			/* else change scroll region and margins */
+			else {
+				dprintf(STDOUT_FILENO,
+					ANSI_SCROLL_REGION ANSI_CLEAR,
 					term_lines);
+
+				/* XXX doesn't seem to work */
+				if (term_cols != ows.ws_col)
+					dprintf(STDOUT_FILENO,
+						DEC_MARGINS_ON DEC_MARGINS_SET,
+						term_cols);
+			}
+
+			/* Digilog doesn't have autowrap */
+			if (strcmp(term_type, "digilog33") == 0)
+				dprintf(STDOUT_FILENO, DEC_AUTOWRAP_OFF);
 		}
 	} else {
 		if (term_type) {
+
 			/* restore user terminal size */
 			if (resize_win)
 				dprintf(STDOUT_FILENO, ANSI_RESIZE,
 					ows.ws_row, ows.ws_col);
-			else
-				dprintf(STDOUT_FILENO, ANSI_SCROLL_RESET);
+
+			/* else reset scroll region and margins */
+			else {
+				dprintf(STDOUT_FILENO,
+					ANSI_SCROLL_RESET ANSI_SET_ROW,
+					term_lines);
+				if (term_cols != ows.ws_col)
+					dprintf(STDOUT_FILENO, DEC_MARGINS_OFF);
+			}
+
+			/* re-enable autowrap */
+			if (strcmp(term_type, "digilog33") == 0)
+				dprintf(STDOUT_FILENO, DEC_AUTOWRAP_ON);
 		}
 
 		/* restore tty settings */

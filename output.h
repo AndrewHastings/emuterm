@@ -16,7 +16,7 @@
  */
 
 /*
- * Translate output from emulated terminal into ANSI escape sequences.
+ * Translate output from emulated terminal into xterm control sequences.
  */
 
 #ifndef _OUTPUT_H

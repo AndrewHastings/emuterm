@@ -1,12 +1,12 @@
 # emuterm
 
-**emuterm** emulates an old terminal by handling its output escape
+**emuterm** emulates an old terminal by handling its output control
 sequences. The intended use is to run old programs on simulated hardware
 (e.g., the SIMH HP2000 TSB) that assume a particular type of serial terminal.
 
-**emuterm** is a command-line program designed to run inside an ANSI
-terminal emulator, e.g. **xterm** or **gnome-terminal**. It is NOT a
-standalone GUI program.
+**emuterm** is a command-line program designed to run inside a terminal
+emulator that recognizes ANSI and xterm control sequences, e.g. **xterm**
+or **gnome-terminal**. It is NOT a standalone GUI program.
 
 ## Emulation
 
@@ -39,3 +39,5 @@ terminal input.
 - Terminals wiki: https://terminals-wiki.org
 
 - Termcap/Terminfo Resources Page: http://www.catb.org/~esr/terminfo/
+
+- Xterm control sequences: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
