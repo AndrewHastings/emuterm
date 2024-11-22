@@ -17,78 +17,28 @@ along with this program; see the file COPYING.  If not, write to
 the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 Boston, MA 02111-1307, USA.  */
 
-/* Emacs config.h may rename various library functions such as malloc.  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+/*
+ * Adapted for emuterm by removing unneeded code, adding TERMPATH support.
+ * Copyright 2024 Andrew B. Hastings.
+ */
 
-#ifdef emacs
 
-#include <lisp.h>		/* xmalloc is here */
-/* Get the O_* definitions for open et al.  */
-#include <sys/file.h>
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-
-#else /* not emacs */
-
-#ifdef STDC_HEADERS
 #include <stdlib.h>
 #include <string.h>
-#else
-char *getenv ();
-char *malloc ();
-char *realloc ();
-#endif
-
-/* Do this after the include, in case string.h prototypes bcopy.  */
-#if (defined(HAVE_STRING_H) || defined(STDC_HEADERS)) && !defined(bcopy)
-#define bcopy(s, d, n) memcpy ((d), (s), (n))
-#endif
-
-#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-#ifdef _POSIX_VERSION
 #include <fcntl.h>
-#endif
 
-#endif /* not emacs */
-
-#ifndef NULL
-#define NULL (char *) 0
-#endif
-
-#ifndef O_RDONLY
-#define O_RDONLY 0
-#endif
 
 /* BUFSIZE is the initial size allocated for the buffer
    for reading the termcap file.
    It is not a limit.
-   Make it large normally for speed.
-   Make it variable when debugging, so can exercise
-   increasing the space dynamically.  */
+   Make it large normally for speed. */
 
-#ifndef BUFSIZE
-#ifdef DEBUG
-#define BUFSIZE bufsize
-
-int bufsize = 128;
-#else
 #define BUFSIZE 2048
-#endif
-#endif
 
-#ifndef TERMCAP_FILE
-#define TERMCAP_FILE "/etc/termcap"
-#endif
+/* Pathname used by FreeBSD, relative to /usr */
+#define DEF_FILE  "/share/misc/termcap"
 
-#ifndef emacs
 static void
 memory_out ()
 {
@@ -118,7 +68,6 @@ xrealloc (ptr, size)
     memory_out ();
   return tem;
 }
-#endif /* not emacs */
 
 /* Looking up capabilities in the entry already found.  */
 
@@ -193,17 +142,6 @@ tgetstr (cap, area)
   return tgetst1 (ptr, area);
 }
 
-#ifdef IS_EBCDIC_HOST
-/* Table, indexed by a character in range 0200 to 0300 with 0200 subtracted,
-   gives meaning of character following \, or a space if no special meaning.
-   Sixteen characters per line within the string.  */
-
-static char esctab[]
-  = " \057\026  \047\014         \
-     \025   \015      \
-   \005 \013          \
-                ";
-#else
 /* Table, indexed by a character in range 0100 to 0140 with 0100 subtracted,
    gives meaning of character following \, or a space if no special meaning.
    Eight characters per line within the string.  */
@@ -213,7 +151,6 @@ static char esctab[]
       \012 \
   \015 \011 \013 \
         ";
-#endif
 
 /* PTR points to a string value inside a termcap entry.
    Copy that value, processing \ and ^ abbreviations,
@@ -277,21 +214,12 @@ tgetst1 (ptr, area)
 		  p++;
 		}
 	    }
-#ifdef IS_EBCDIC_HOST
-	  else if (c >= 0200 && c < 0360)
-	    {
-	      c1 = esctab[(c & ~0100) - 0200];
-	      if (c1 != ' ')
-		c = c1;
-	    }
-#else
 	  else if (c >= 0100 && c < 0200)
 	    {
 	      c1 = esctab[(c & ~040) - 0100];
 	      if (c1 != ' ')
 		c = c1;
 	    }
-#endif
 	}
       *r++ = c;
     }
@@ -300,95 +228,6 @@ tgetst1 (ptr, area)
   if (area)
     *area = r + 1;
   return ret;
-}
-
-/* Outputting a string with padding.  */
-
-#ifndef emacs
-short ospeed;
-/* If OSPEED is 0, we use this as the actual baud rate.  */
-int tputs_baud_rate;
-#endif
-char PC;
-
-#ifndef emacs
-/* Actual baud rate if positive;
-   - baud rate / 100 if negative.  */
-
-static int speeds[] =
-  {
-#ifdef VMS
-    0, 50, 75, 110, 134, 150, -3, -6, -12, -18,
-    -20, -24, -36, -48, -72, -96, -192
-#else /* not VMS */
-    0, 50, 75, 110, 135, 150, -2, -3, -6, -12,
-    -18, -24, -48, -96, -192, -288, -384, -576, -1152
-#endif /* not VMS */
-  };
-
-#endif /* not emacs */
-
-void
-tputs (str, nlines, outfun)
-     register char *str;
-     int nlines;
-     register int (*outfun) ();
-{
-  register int padcount = 0;
-  register int speed;
-
-#ifdef emacs
-  extern int baud_rate;
-  speed = baud_rate;
-  /* For quite high speeds, convert to the smaller
-     units to avoid overflow.  */
-  if (speed > 10000)
-    speed = - speed / 100;
-#else
-  if (ospeed == 0)
-    speed = tputs_baud_rate;
-  else
-    speed = speeds[ospeed];
-#endif
-  
-  if (!str)
-    return;
-
-  while (*str >= '0' && *str <= '9')
-    {
-      padcount += *str++ - '0';
-      padcount *= 10;
-    }
-  if (*str == '.')
-    {
-      str++;
-      padcount += *str++ - '0';
-    }
-  if (*str == '*')
-    {
-      str++;
-      padcount *= nlines;
-    }
-  while (*str)
-    (*outfun) (*str++);
-
-  /* PADCOUNT is now in units of tenths of msec.
-     SPEED is measured in characters per 10 seconds
-     or in characters per .1 seconds (if negative).
-     We use the smaller units for larger speeds to avoid overflow.  */
-  padcount *= speed;
-  padcount += 500;
-  padcount /= 1000;
-  if (speed < 0)
-    padcount = -padcount;
-  else
-    {
-      padcount += 50;
-      padcount /= 100;
-    }
-
-  while (padcount-- > 0)
-    (*outfun) (PC);
 }
 
 /* Finding the termcap entry in the termcap data base.  */
@@ -409,45 +248,6 @@ static char *gobble_line ();
 static int compare_contin ();
 static int name_match ();
 
-#ifdef VMS
-
-#include <rmsdef.h>
-#include <fab.h>
-#include <nam.h>
-
-static int
-valid_filename_p (fn)
-     char *fn;
-{
-  struct FAB fab = cc$rms_fab;
-  struct NAM nam = cc$rms_nam;
-  char esa[NAM$C_MAXRSS];
-
-  fab.fab$l_fna = fn;
-  fab.fab$b_fns = strlen(fn);
-  fab.fab$l_nam = &nam;
-  fab.fab$l_fop = FAB$M_NAM;
-
-  nam.nam$l_esa = esa;
-  nam.nam$b_ess = sizeof esa;
-
-  return SYS$PARSE(&fab, 0, 0) == RMS$_NORMAL;
-}
-
-#else /* !VMS */
-
-#ifdef MSDOS /* MW, May 1993 */
-static int
-valid_filename_p (fn)
-     char *fn;
-{
-  return *fn == '/' || fn[1] == ':';
-}
-#else
-#define valid_filename_p(fn) (*(fn) == '/')
-#endif
-
-#endif /* !VMS */
 
 /* Find the termcap entry data for terminal type NAME
    and store it in the block that BP points to.
@@ -475,22 +275,7 @@ tgetent (bp, name)
   char *tcenv = NULL;		/* TERMCAP value, if it contains :tc=.  */
   char *indirect = NULL;	/* Terminal type in :tc= in TERMCAP value.  */
   int filep;
-
-#ifdef INTERNAL_TERMINAL
-  /* For the internal terminal we don't want to read any termcap file,
-     so fake it.  */
-  if (!strcmp (name, "internal"))
-    {
-      term = INTERNAL_TERMINAL;
-      if (!bp)
-	{
-	  malloc_size = 1 + strlen (term);
-	  bp = (char *) xmalloc (malloc_size);
-	}
-      strcpy (bp, term);
-      goto ret;
-    }
-#endif /* INTERNAL_TERMINAL */
+  char *termpath = NULL;
 
   /* For compatibility with programs like `less' that want to
      put data in the termcap buffer themselves as a fallback.  */
@@ -500,14 +285,8 @@ tgetent (bp, name)
   termcap_name = getenv ("TERMCAP");
   if (termcap_name && *termcap_name == '\0')
     termcap_name = NULL;
-#if defined (MSDOS) && !defined (TEST)
-  if (termcap_name && (*termcap_name == '\\'
-		       || *termcap_name == '/'
-		       || termcap_name[1] == ':'))
-    dostounix_filename(termcap_name);
-#endif
 
-  filep = termcap_name && valid_filename_p (termcap_name);
+  filep = termcap_name && *termcap_name == '/';
 
   /* If termcap_name is non-null and starts with / (in the un*x case, that is),
      it is a file name to use instead of /etc/termcap.
@@ -533,16 +312,42 @@ tgetent (bp, name)
 	}
     }
 
-  if (!termcap_name || !filep)
-    termcap_name = TERMCAP_FILE;
+  if (termcap_name && filep)
+    {
+      /* Open file specified by TERMCAP */
+      fd = open (termcap_name, O_RDONLY, 0);
+    }
+  else
+    {
+      /* Use termpath from env */
+      if (termpath = getenv("TERMPATH"))
+	termpath = strdup(termpath);
+      else
+        {
+	  /* Default termpath: termcap:$HOME/.local/DEF_FILE:/usr/DEF_FILE */
+	  char *home = getenv("HOME");
+	  int len = home ? strlen(home) + 7 + sizeof(DEF_FILE) : 0;
 
-  /* Here we know we must search a file and termcap_name has its name.  */
+	  termpath = xmalloc(8 + len + 4 + sizeof(DEF_FILE));
+	  strcpy(termpath, "termcap:");
+	  if (home)
+	    {
+	      strcat(termpath, home);
+	      strcat(termpath, "/.local" DEF_FILE ":");
+	    }
+	  strcat(termpath, "/usr" DEF_FILE);
+	}
 
-#ifdef MSDOS
-  fd = open (termcap_name, O_RDONLY|O_TEXT, 0);
-#else
-  fd = open (termcap_name, O_RDONLY, 0);
-#endif
+      /* Open the first available file in termpath */
+      for (termcap_name = strtok(termpath, ":");
+	   termcap_name;
+	   termcap_name = strtok(NULL, ":") )
+        {
+	  if ((fd = open(termcap_name, O_RDONLY, 0)) >= 0)
+	    break;
+        }
+    }
+
   if (fd < 0)
     return -1;
 
@@ -568,10 +373,20 @@ tgetent (bp, name)
 
   while (term)
     {
+restart:
       /* Scan the file, reading it via buf, till find start of main entry.  */
       if (scan_file (term, fd, &buf) == 0)
 	{
 	  close (fd);
+
+	  /* Open next available file in termpath */
+	  while (termpath && (termcap_name = strtok(NULL, ":")))
+	    {
+	      if ((fd = open(termcap_name, O_RDONLY, 0)) >= 0)
+	        goto restart;
+	    }
+
+	  free (termpath);
 	  free (buf.beg);
 	  if (malloc_size)
 	    free (bp);
@@ -619,6 +434,7 @@ tgetent (bp, name)
 
   close (fd);
   free (buf.beg);
+  free (termpath);
 
   if (malloc_size)
     bp = (char *) xrealloc (bp, bp1 - bp + 1);
@@ -768,7 +584,7 @@ gobble_line (fd, bufp, append_end)
       else
 	{
 	  append_end -= bufp->ptr - buf;
-	  bcopy (bufp->ptr, buf, bufp->full -= bufp->ptr - buf);
+	  memmove (buf, bufp->ptr, bufp->full -= bufp->ptr - buf);
 	  bufp->ptr = buf;
 	}
       if (!(nread = read (fd, buf + bufp->full, bufp->size - bufp->full)))
@@ -780,10 +596,6 @@ gobble_line (fd, bufp, append_end)
 }
 
 #ifdef TEST
-
-#ifdef NULL
-#undef NULL
-#endif
 
 #include <stdio.h>
 
