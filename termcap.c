@@ -768,13 +768,14 @@ main (argc, argv)
      char **argv;
 {
   char *term;
-  char *buf;
+  char buf[BUFSIZE];
+  int rv;
 
   term = argv[1];
   printf ("TERM: %s\n", term);
 
-  buf = (char *) tgetent (0, term);
-  if ((int) buf <= 0)
+  rv = tgetent (buf, term);
+  if (rv <= 0)
     {
       printf ("No entry.\n");
       return 0;
