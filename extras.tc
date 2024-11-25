@@ -1,0 +1,5 @@
+### extras.tc - additional terminal types for emuterm
+
+# Digi-Log 33 was a portable terminal, displaying on an external monitor or TV.
+digilog33|digilog 33:\
+        :li#16:co#80:bs:bl=^G:le=^H:nd=^I:do=^J:up=^K:cl=^L:cr=^M:ho=^N:sf=^P:

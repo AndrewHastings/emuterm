@@ -22,6 +22,7 @@
 #ifndef _OUTPUT_H
 #define _OUTPUT_H 1
 
+extern char *set_termtype(char *term, struct winsize *ws, char *errbuf);
 extern void omode(int raw);
 extern int handle_output(int mfd);
 extern void save_output(char *path);
