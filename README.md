@@ -1,20 +1,32 @@
 # emuterm
 
-**emuterm** emulates an old terminal by handling its output control
-sequences. The intended use is to run old programs on simulated hardware
-(e.g., the SIMH HP2000 TSB) that assume a particular type of serial terminal.
+**emuterm** emulates an old serial terminal by handling its output control
+sequences. The intended use is to run old programs (e.g., **PLOT33** from
+the HP2000 TSB system) which assume a particular type of serial terminal
+(e.g., the Digi-Log 33) in simulation (e.g., the SIMH HP2000 TSB)
 
 **emuterm** is a command-line program designed to run inside a terminal
 emulator that recognizes ANSI and xterm control sequences, e.g. **xterm**
 or **gnome-terminal**. It is NOT a standalone GUI program.
 
+**emuterm** can also act as a pass-through (no emulation) for access to
+the "Features" below (e.g., to run the BSD **rain** program at 1200 baud).
+
 ## Emulation
 
-Currently supported terminals:
+**emuterm** consults the old **termcap** text database to extract the
+control sequences of the emulated terminal. (Both the modern **terminfo**
+and the old **termcap** are designed for generating control sequences,
+not recognizing them. Because **termcap** string capabilities are
+simpler, they are easier to recognize and parse on output.)
 
-- Digilog 33 (for running the HP2000 TSB **PLOT33** program)
+Since modern distros have dropped the **termcap** file, and old terminals
+are omitted from the **terminfo** database, a **termcap** file is included
+with **emuterm**. It should be installed in `$HOME/.local/share/misc/`.
 
-- No emulation (pass-through; for access to the "Features" below)
+Currently, **emuterm** has only preliminary support for termcap
+capabilities and cannot emulate terminals that require multi-character
+control sequences.
 
 ## Features
 
@@ -34,9 +46,9 @@ terminal input.
 
 - HP2000 TSB simulator: https://simh.trailing-edge.com/hp/
 
-- Digilog terminal documentation: https://bitsavers.org/pdf/digi-log/
+- Digi-Log terminal documentation: https://bitsavers.org/pdf/digi-log/
 
-- Terminals wiki: https://terminals-wiki.org
+- Termcap file format: https://man.openbsd.org/termcap.5
 
 - Termcap/Terminfo Resources Page: http://www.catb.org/~esr/terminfo/
 

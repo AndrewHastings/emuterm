@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <time.h>
+#include <termio.h>
 #define __USE_GNU /* for sighandler_t */
 #include <signal.h>
 #include "emuterm.h"
