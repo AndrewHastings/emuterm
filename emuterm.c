@@ -39,8 +39,6 @@
 
 char *prog;
 int resize_win = 0;
-int term_cols, term_lines;
-char *term_type = NULL;
 struct timespec odelay = {0, 0};
 int sendfd = -1;
 
@@ -144,19 +142,27 @@ void pty_master(int mfd, pid_t cpid)
 
 	for (;;) {
 
-		if (poll(pfds, npoll, -1) < 0)
+		if (poll(pfds, npoll, -1) < 0) {
+			perror("\r\npoll");
 			break;
+		}
 
 		/* Output from slave? */
 		if (pfds[0].revents & (POLLIN|POLLERR))
-			if (handle_output(mfd) < 0)
+			if (handle_output(mfd) < 0) {
+				if (errno)
+					perror("\r\nhandle_output");
 				break;
+			}
 
 		/* Not sending a file, handle user input normally. */
 		if (sendfd < 0) {
 			if (pfds[1].revents & (POLLIN|POLLERR))
-				if (handle_input(mfd) < 0)
+				if (handle_input(mfd) < 0) {
+					if (errno)
+						perror("\r\nhandle_input");
 					break;
+				}
 			if (sendfd < 0)
 				continue;
 
@@ -210,11 +216,6 @@ void pty_slave(char **argv)
 
 	if (!*argv)
 		argv = defargs;
-	if (term_type) {
-		char *term = alloca(strlen(term_type) + 6);
-		sprintf(term, "TERM=%s", term_type);
-		putenv(term);
-	}
 	execvp(argv[0], argv);
 	printf("%s: %s: %s", prog, argv[0], strerror(errno));
 	exit(1);
@@ -238,6 +239,7 @@ void main(int argc, char **argv)
 	int c;
 	int mfd;
 	pid_t pid;
+	char *term_type = NULL;
 	int ospeed = 0;
 	struct termios tio;
 	struct winsize ws;
@@ -281,20 +283,18 @@ void main(int argc, char **argv)
 
 	/* Copy current tty modes to emulated terminal. */
 	tcgetattr(STDIN_FILENO, &tio);
+	ioctl(STDIN_FILENO, TIOCGWINSZ, &ws);
 
-	/* Set kernel's window size params to match emulated terminal. */
+	/* Validate emulated terminal and get winsize. */
 	if (term_type) {
-		if (strcmp(term_type, "digilog33") != 0) {
-			fprintf(stderr, "Only '-t digilog33' is supported\n");
+		char errbuf[128], *err;
+
+		memset(&ws, sizeof ws, 0);
+		if (err = set_termtype(term_type, &ws, errbuf)) {
+			fprintf(stderr, "%s\n", err);
 			exit(1);
 		}
-		term_cols = 80;		/* XXX hardcoded for now */
-		term_lines = 16;	/* XXX hardcoded for now */
-		memset(&ws, sizeof ws, 0);
-		ws.ws_row = term_lines;
-		ws.ws_col = term_cols;
-	} else
-		ioctl(STDIN_FILENO, TIOCGWINSZ, &ws);
+	}
 
 	if (ospeed)
 		set_ospeed(&tio, ospeed);
@@ -305,6 +305,12 @@ void main(int argc, char **argv)
 		}
 		pty_master(mfd, pid);
 	} else {
+		if (term_type) {
+			char *term = alloca(strlen(term_type) + 6);
+
+			sprintf(term, "TERM=%s", term_type);
+			putenv(term);
+		}
 		pty_slave(argv+optind);
 	}
 	exit(0);
