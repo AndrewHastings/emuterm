@@ -15,20 +15,25 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 
-CFLAGS=-g -fsanitize=address -Wunused-variable
+CFLAGS=-g -fsanitize=address -Werror -Wunused-variable
 
-HDRS = emuterm.h input.h output.h
-OBJS = emuterm.o input.o output.o
+HDRS = emuterm.h input.h output.h termcap.h
+OBJS = emuterm.o input.o output.o termcap.o
 LIBS = -lutil
+
+all: emuterm termcap
 
 emuterm: $(OBJS)
 	$(CC) $(CFLAGS) -o emuterm $^ $(LIBS)
+
+termcap: extras.tc termtypes.tc
+	cat $^ > $@
 
 clean:
 	$(RM) $(OBJS)
 
 clobber:
-	$(RM) emuterm $(OBJS)
+	$(RM) emuterm termcap $(OBJS)
 
 %.o : %.c $(HDRS)
 	$(CC) $(CFLAGS) -c $<
