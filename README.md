@@ -6,7 +6,7 @@ the HP2000 TSB system) which assume a particular type of serial terminal
 (e.g., the Digi-Log 33) in simulation (e.g., the SIMH HP2000 TSB)
 
 **emuterm** is a command-line program designed to run inside a terminal
-emulator that recognizes ANSI and xterm control sequences, e.g. **xterm**
+emulator that handles ANSI and xterm control sequences, e.g. **xterm**
 or **gnome-terminal**. It is NOT a standalone GUI program.
 
 **emuterm** can also act as a pass-through (no emulation) for access to
@@ -16,19 +16,26 @@ the "Features" below (e.g., to run the BSD **rain** program at 1200 baud).
 
 **emuterm** consults the old **termcap** text database to extract the
 control sequences of the emulated terminal. (Both the modern **terminfo**
-and the old **termcap** are designed for generating control sequences,
-not recognizing them. Because **termcap** string capabilities are
+and the old **termcap** are designed for *generating* control sequences,
+not *recognizing* them. Because **termcap** string capabilities are
 simpler, they are easier to recognize and parse on output.)
 
 Since modern distros have dropped the **termcap** file, and old terminals
-are omitted from the **terminfo** database, a **termcap** file is included
-with **emuterm**. It should be installed in `$HOME/.local/share/misc/`.
+are usually omitted from the default **terminfo** database install,
+a **termcap** file is included with **emuterm**. It should be copied to
+`$HOME/.local/share/misc/termcap`.
 
-Currently, **emuterm** has only preliminary support for termcap
-capabilities and cannot emulate terminals that require multi-character
-control sequences.
+Limitations:
 
-## Features
+- Supports a minimal set of terminal capabilities, mostly just those
+typically needed by old **vi** implementations. **emuterm** detects some
+unsupported capabilities at startup, but others may be ignored or
+partially passed through at runtime.
+
+- Handles only output control sequences, not input control sequences
+(e.g., as sent by arrow and function keys).
+
+## Additional Features
 
 - Emulate the output baud rates of old terminals (e.g., 300 baud or 30
 characters per second).

@@ -1,4 +1,4 @@
-### extras.tc - additional terminal types for emuterm
+### extras.tc - extra termcap info for emuterm
 #
 # Copyright 2024 Andrew B. Hastings. All rights reserved.
 #
@@ -15,6 +15,37 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+## Notes:
+#
+# - The default TERMPATH is:
+#     ./termcap:$HOME/.local/share/misc/termcap:/usr/share/misc/termcap
+#
+# - Before searching TERMPATH, emuterm first consults TERMCAP and TERM.
+#   TERMCAP can contain a filename starting with '/', or a complete
+#   termcap entry. If the latter, TERM must match the name in the termcap
+#   entry and the emuterm -t option.
+#
+# - If emuterm complains about an unsupported termcap capability, try
+#   removing that capability (or a conflicting capability) from your
+#   copy of the termcap file.
+#
+# - The supplied termtypes.tc is from GNU termcap 1.3.1 since it has a GPL2
+#   license. Unfortunately, some of the entries use terminfo formatting
+#   strings (unsupported, even by GNU termcap 1.3.1) or have commented out
+#   the capability (e.g., the c108 'cm' capability). To obtain a more
+#   compatible termcap file, try downloading:
+#     https://www.tuhs.org/cgi-bin/utree.pl?file=4.4BSD/etc/termcap
+#
+# - To install terminfo entries for many old terminals, try:
+#     sudo apt-get install ncurses-term
+#
+# - To extract a termcap entry from the terminfo database, try:
+#     infocmp -CKr <term-name>
+#   Conversely, to convert and add a termcap entry to the terminfo database,
+#   try:
+#     tic -sr -e <term-name> <termcap-file>
+
+## Additional termcap entries:
 # Digi-Log 33 was a portable terminal, displaying on an external monitor or TV.
 digilog33|digilog 33:\
         :li#16:co#80:bs:bl=^G:le=^H:nd=^I:do=^J:up=^K:cl=^L:cr=^M:ho=^N:sf=^P:
