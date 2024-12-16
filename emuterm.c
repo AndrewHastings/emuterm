@@ -212,7 +212,7 @@ void pty_master(int mfd, pid_t cpid)
 
 void pty_slave(char **argv)
 {
-	char *defargs[] = {"bash", NULL};
+	char *defargs[] = {"bash", "--norc", NULL};
 
 	if (!*argv)
 		argv = defargs;
@@ -226,10 +226,10 @@ void usage(int ec)
 {
 	fprintf(stderr, "Usage: %s [-c cps] [-r] [-t termtype] [cmd args...]\n",
 			prog);
-	fprintf(stderr, "Default cmd: 'bash'\n");
-	fprintf(stderr, " -c   specify output chars/sec (default no delay)\n");
-	fprintf(stderr, " -r   resize X terminal (default change scroll region)\n");
-	fprintf(stderr, " -t   emulated terminal type (default no emulation)\n");
+	fprintf(stderr, "Default cmd: 'bash --norc'\n");
+	fprintf(stderr, " -c  specify output chars/sec (default no delay)\n");
+	fprintf(stderr, " -r  try to resize X terminal (default change scroll region)\n");
+	fprintf(stderr, " -t  emulated terminal type (default no emulation)\n");
 	exit(ec);
 }
 
@@ -281,7 +281,7 @@ void main(int argc, char **argv)
 		}
 	}
 
-	/* Copy current tty modes to emulated terminal. */
+	/* Get current tty modes for use in emulated terminal. */
 	tcgetattr(STDIN_FILENO, &tio);
 	ioctl(STDIN_FILENO, TIOCGWINSZ, &ws);
 

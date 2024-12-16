@@ -32,8 +32,17 @@ typically needed by old **vi** implementations. **emuterm** detects some
 unsupported capabilities at startup, but others may be ignored or
 partially passed through at runtime.
 
-- Function keys are not supported, but **emuterm** will try to translate
-arrow keys as defined by the "ku", "kd", "kr", "kl" capabilities.
+- In general, function keys are not supported on input. However,
+**emuterm** will try to translate arrow keys as defined by the termcap
+"ku", "kd", "kr", and "kl" capabilities.
+
+Caveat:
+
+- The modern **vim** and **ncurses** have some limitations in supporting
+old serial terminals that the original BSD **vi** and **curses** did *not*
+have. In particular, **vim** requires the termcap "cm" capability while
+BSD **vi** did not. Try running a "cdc713" terminal type with the
+"Traditional Vi" (see "References" below) versus running with **vim**.
 
 ## Additional Features
 
@@ -55,14 +64,18 @@ terminal input.
 
 ## References
 
-- HP2000 TSB simulator: https://simh.trailing-edge.com/hp/
-
 - Digi-Log terminal documentation: https://bitsavers.org/pdf/digi-log/
+
+- Control Data 713 terminal documentation: https://bitsavers.org/pdf/cdc/terminal/713/
 
 - Tset command: https://man.openbsd.org/OpenBSD-2.2/tset.1
 
 - Termcap file format: https://man.openbsd.org/OpenBSD-2.2/termcap.5
 
 - Termcap/Terminfo Resources Page: http://www.catb.org/~esr/terminfo/
+
+- HP2000 TSB simulator: https://simh.trailing-edge.com/hp/
+
+- The Traditional Vi: https://ex-vi.sourceforge.net/
 
 - Xterm control sequences: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html

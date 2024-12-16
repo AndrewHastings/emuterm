@@ -167,6 +167,7 @@ enum action {
 	AC_FMT1 = AC_FMT+1,	  /* format string w/1 integer argument */
 	AC_FMT2 = AC_FMT1+1,	  /* format string w/2 integer arguments */
 	AC_FMT2_REV = AC_FMT2+1,  /* AC_FMT2 w/args swapped */
+	AC_LL = AC_FMT2_REV+1,    /* format string w/#lines */
 };
 
 enum state {
@@ -193,7 +194,7 @@ void dump_pt(struct pentry *pt, int indent)
 {
 	struct pentry *pp;
 	int i, j;
-	char *s;
+	unsigned char *s;
 
 	for (i = 0, pp = pt; i < 128; i++, pp++) {
 		if (pp->pt_action == ((pt == parsetab && i >= 32) ? AC_PRINT
@@ -224,7 +225,7 @@ void dump_pt(struct pentry *pt, int indent)
 			fprintf(stderr, "%*s}",  indent+4, "");
 			break;
 
-		    default:  /* AC_FMT* */
+		    default:  /* AC_FMT*, AC_LL */
 			fputc('"', stderr);
 			for (s = pp->pt_ptr; *s; s++)
 				fprintf(stderr,
@@ -233,7 +234,7 @@ void dump_pt(struct pentry *pt, int indent)
 			fputc('"', stderr);
 			if (pp->pt_action > AC_FMT)
 				fprintf(stderr, ",%c",
-						" 12R"[pp->pt_action - AC_FMT]);
+					      " 12RL"[pp->pt_action - AC_FMT]);
 		}
 		fputc('\n', stderr);
 	}
@@ -244,14 +245,24 @@ char *add_parse(char *val, enum action action, char *rep)
 {
 	struct pentry *pt = parsetab, *ep = NULL;
 	struct step *step;
-	int nargs;		    /* required # args */
+	int nargs = 0;		    /* required # args */
 	int nfound = 0;		    /* total # '%' formats */
 	int incr = 0;		    /* '%i' present */
-	char c;
+	unsigned char c;
 
-	if (action < AC_FMT || action > AC_FMT2)
+	switch (action) {
+	    case AC_FMT:
+	    case AC_FMT1:
+	    case AC_FMT2:
+		nargs = action - AC_FMT;
+		break;
+
+	    case AC_LL:
+		break;
+
+	    default:
 		return "internal error: action";
-	nargs = action - AC_FMT;
+	}
 
 	while (c = *val++) {
 		if (c > 127)
@@ -346,36 +357,42 @@ char *add_parse(char *val, enum action action, char *rep)
 
 
 /* validate terminal type and initialize parse table */
+#define E(x) x, "»" x
+#define N(x) x, x
+#define S(x) x, x "«"
 struct tcap {
 	char		tc_name[3];	/* capability name */
 	enum action 	tc_action;
-	char		*tc_rep;	/* xterm replacement */
+	char		*tc_rep[2];	/* xterm replacement */
 } tcaps[] = {
-	"al", AC_FMT,    "\e[L",	/* ANSI insert line */
-	"bc", AC_FMT,    "\b",		/* ^H */
-	"bl", AC_FMT,    "\a",		/* ^G */
-	"cd", AC_FMT,    ANSI_CLEAR_BELOW,
-	"ce", AC_FMT,    "\e[K",	/* ANSI clear to right */
-	"cl", AC_FMT,    ANSI_CLEAR,
-	"cm", AC_FMT2,   "\e[%d;%dH",	/* ANSI position cursor */
-	"cr", AC_FMT,    "\r",		/* ^M */
-	"cs", AC_IGNORE, NULL,		/* unsupported */
-	"dc", AC_FMT,    "\e[P",	/* ANSI delete character */
-	"dl", AC_FMT,    "\e[M",	/* ANSI delete line */
-	"do", AC_FMT,    "\n",		/* ^J */
-	"ho", AC_FMT,    ANSI_HOME,
-	"ic", AC_FMT,    "\e[@",	/* ANSI insert character */
-	"ke", AC_FMT,	 "",		/* ignore */
-	"ks", AC_FMT,	 "",		/* ignore */
-	"le", AC_FMT,    ANSI_LEFT,
-	"ll", AC_IGNORE, NULL,		/* unsupported */
-	"nd", AC_FMT,    "\e[C",	/* ANSI right */
-	"se", AC_FMT,    "\e[m",	/* ANSI normal */
-	"so", AC_FMT,    "\e[7m",	/* ANSI inverse */
-	"ta", AC_FMT,    "\t",		/* ^I */
-	"up", AC_FMT,    "\e[A",	/* ANSI up */
-	"",   0, NULL
+	"al", AC_FMT,    N("\e[L"),	/* ANSI insert line */
+	"bc", AC_FMT,    N("\b"),	/* ^H */
+	"bl", AC_FMT,    N("\a"),	/* ^G */
+	"cd", AC_FMT,    N(ANSI_CLEAR_BELOW),
+	"ce", AC_FMT,    N("\e[K"),	/* ANSI clear to right */
+	"cl", AC_FMT,    N(ANSI_CLEAR),
+	"cm", AC_FMT2,   N("\e[%d;%dH"),/* ANSI position cursor */
+	"cr", AC_FMT,    N("\r"),	/* ^M */
+	"cs", AC_IGNORE, N(NULL),	/* unsupported */
+	"dc", AC_FMT,    N("\e[P"),	/* ANSI delete character */
+	"dl", AC_FMT,    N("\e[M"),	/* ANSI delete line */
+	"do", AC_FMT,    N("\n"),	/* ^J */
+	"ho", AC_FMT,    N(ANSI_HOME),
+	"ic", AC_FMT,    N("\e[@"),	/* ANSI insert character */
+	"ke", AC_FMT,    N(""),		/* ignore */
+	"ks", AC_FMT,    N(""),		/* ignore */
+	"le", AC_FMT,    N(ANSI_LEFT),
+	"ll", AC_LL,     N(ANSI_SET_ROW),
+	"nd", AC_FMT,    N("\e[C"),	/* ANSI right */
+	"se", AC_FMT,    E("\e[m"),	/* ANSI normal */
+	"so", AC_FMT,    S("\e[7m"),	/* ANSI inverse */
+	"ta", AC_FMT,    N("\t"),	/* ^I */
+	"up", AC_FMT,    N("\e[A"),	/* ANSI up */
+	"",   0,         N(NULL)
 };
+#undef E
+#undef N
+#undef S
 
 
 /* returns capability value after skipping over padding */
@@ -402,13 +419,28 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 	static char tbuf[2048];	/* returned termcap entry */
 	char *cp, *err;
 	struct tcap *tp;
-	int c, rv;
+	int c, has_sg, rv;
 
 	rv = tgetent(tbuf, term);
 	if (rv < 0)
 		return "No termcap file found, try setting TERMPATH";
 	if (rv == 0)
 		return "Terminal type not found in termcap database";
+
+	/* numeric capabilities */
+	term_cols = tgetnum("co");
+	term_lines = tgetnum("li");
+	if (term_cols <= 0)
+		return "Columns not valid in termcap entry";
+	if (term_lines <= 0)	/* not set, use current screen size */
+		term_lines = ws->ws_row;
+	ws->ws_row = term_lines;
+	ws->ws_col = term_cols;
+	has_sg = tgetnum("sg");
+	if (has_sg > 1)
+		return "Termcap 'sg' capability > 1 is unsupported";
+	if (has_sg < 0)
+		has_sg = 0;
 
 	/* string capabilities */
 	parsetab['\n'].pt_action = AC_PRINT;
@@ -419,13 +451,13 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 	for (tp = tcaps; tp->tc_name[0]; tp++) {
 		if (!(cp = get_strcap(tp->tc_name)))
 			continue;
-		if (!tp->tc_rep) {
+		if (!tp->tc_rep[has_sg]) {
 			sprintf(errbuf,
 				"Termcap '%s' capability is unsupported",
 				tp->tc_name);
 			return errbuf;
 		}
-		err = add_parse(cp, tp->tc_action, tp->tc_rep);
+		err = add_parse(cp, tp->tc_action, tp->tc_rep[has_sg]);
 		if (err) {
 			sprintf(errbuf,
 				"Termcap '%s' capability unsupported: %s",
@@ -454,18 +486,6 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 			term_arrows[c] = cp;
 	}
 
-	/* numeric capabilities */
-	term_cols = tgetnum("co");
-	term_lines = tgetnum("li");
-	if (term_cols <= 0)
-		return "Columns not valid in termcap entry";
-	if (term_lines <= 0)	/* not set, use current screen size */
-		term_lines = ws->ws_row;
-	ws->ws_row = term_lines;
-	ws->ws_col = term_cols;
-	if (tgetnum("sg") > 0)
-		return "Termcap 'sg' capability is unsupported";
-
 	/* Boolean capabilities */
 	term_am = tgetflag("am");
 	if (tgetflag("bs")) {
@@ -491,6 +511,21 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 	}
 	if (tgetflag("os"))
 		return "Termcap 'os' capability is unsupported";
+	if (tgetflag("x7")) {			/* CDC 713 glitch */
+		struct pentry *pp;
+
+		pp = parsetab + '\003';		/* ETX */
+		if (!pp->pt_action) {
+			pp->pt_action = AC_FMT;
+			pp->pt_ptr = "▲";
+		}
+
+		pp = parsetab + '\177';		/* DEL */
+		if (!pp->pt_action) {
+			pp->pt_action = AC_FMT;
+			pp->pt_ptr = "■";
+		}
+	}
 
 	/* all done */
 	term_set = 1;
@@ -649,6 +684,11 @@ next_level:
 			/* termcap row, col are 0-based, ANSI is 1-based */
 			rv = dprintf(STDOUT_FILENO, (char *)pp->pt_ptr,
 						    p[0]+1, p[1]+1);
+			break;
+
+		    case AC_LL:
+			rv = dprintf(STDOUT_FILENO, (char *)pp->pt_ptr,
+						    term_lines);
 			break;
 
 		    case AC_NEXT:

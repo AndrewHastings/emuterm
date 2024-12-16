@@ -17,7 +17,7 @@
 
 ## Notes:
 #
-# - The default TERMPATH is:
+# - The default TERMPATH for finding termcap entries is:
 #     ./termcap:$HOME/.local/share/misc/termcap:/usr/share/misc/termcap
 #
 # - Before searching TERMPATH, emuterm first consults TERMCAP and TERM.
@@ -33,25 +33,31 @@
 #   removing that capability (or a conflicting capability) from your
 #   copy of the termcap file.
 #
+# - Modern Linux distros use terminfo, not termcap, and the default install
+#   includes terminfo entries for only a handful of terminal types.
+#   To install terminfo entries for many old terminals, try:
+#     sudo apt-get install ncurses-term
+#
+# - To convert and add a termcap entry to the terminfo database, try:
+#     tic -sr -e <term-name> <termcap-file>
+#   Conversely, to extract a termcap entry from the terminfo database, try:
+#     infocmp -CKr <term-name>
+#
 # - The supplied termtypes.tc is from GNU termcap 1.3.1 since it has a GPL2
 #   license. Unfortunately, some of the entries use terminfo formatting
 #   strings (unsupported, even by GNU termcap 1.3.1) or have commented out
 #   the capability (e.g., the c108 'cm' capability). To obtain a more
 #   compatible termcap file, try downloading:
 #     https://www.tuhs.org/cgi-bin/utree.pl?file=4.4BSD/etc/termcap
-#
-# - To install terminfo entries for many old terminals, try:
-#     sudo apt-get install ncurses-term
-#
-# - To extract a termcap entry from the terminfo database, try:
-#     infocmp -CKr <term-name>
-#   Conversely, to convert and add a termcap entry to the terminfo database,
-#   try:
-#     tic -sr -e <term-name> <termcap-file>
+#   Note that that file does not include the "extras.tc" entries below.
 
 ## Additional termcap entries:
 # Digi-Log 33 was a portable terminal, displaying on an external monitor or TV.
 digilog33|digilog 33:\
-        :li#16:co#80:bs:bl=^G:le=^H:nd=^I:do=^J:up=^K:cl=^L:cr=^M:ho=^N:sf=^P:
+	:li#16:co#80:bs:bl=^G:le=^H:nd=^I:do=^J:up=^K:cl=^L:cr=^M:ho=^N:sf=^P:
+# CDC 713 w/16 lines, scroll enabled. x7 glitch for ETX and DEL as displayable.
+cdc713|Control Data 713:\
+	:li#16:co#80:am:bs:bl=^G:bw:cl=^X:ll=^Y:nd=^U:se=^O:sg#1:so=^N:up=^Z:\
+	:kd=^J:kl=^H:kr=^U:ku=^Z:x7:
 
 ### end extras.tc
