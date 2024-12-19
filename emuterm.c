@@ -38,6 +38,7 @@
 
 
 char *prog;
+int debug = 0;
 int resize_win = 0;
 struct timespec odelay = {0, 0};
 int sendfd = -1;
@@ -247,13 +248,17 @@ void main(int argc, char **argv)
 	prog = strrchr(argv[0], '/');
 	prog = prog ? prog+1 : argv[0];
 
-	while ((c = getopt(argc, argv, "+:c:hrt:")) != -1) {
+	while ((c = getopt(argc, argv, "+:c:dhrt:")) != -1) {
 		switch (c) {
 		    case 'c':
 			if ((ospeed = atoi(optarg)) < 5) {
 				fprintf(stderr, "cps must be >= 5\n");
 				usage(1);
 			}
+			break;
+
+		    case 'd':
+			debug++;
 			break;
 
 		    case 'h':

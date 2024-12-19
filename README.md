@@ -10,7 +10,8 @@ emulator that handles ANSI and xterm control sequences, e.g. **xterm**
 or **gnome-terminal**. It is NOT a standalone GUI program.
 
 **emuterm** can also act as a pass-through (no emulation) for access to
-the "Features" below (e.g., to run the BSD **rain** program at 1200 baud).
+the "Features" below (e.g., to run the BSD **rain** program at a rate
+that more closely matches its original design, 9600 baud or less).
 
 ## Emulation
 
@@ -31,6 +32,13 @@ Limitations:
 typically needed by old **vi** implementations. **emuterm** detects some
 unsupported capabilities at startup, but others may be ignored or
 partially passed through at runtime.
+
+- The output parsing algorithm was not designed to handle control
+sequences with optional parameters as is common in ANSI control
+sequences. Therefore, terminals with ANSI-style control sequences (e.g.,
+DEC VT100, **xterm**) are not supported. (Modern terminal emulators such
+as **gnome-terminal** usually handle a large set of ANSI-style control
+sequences.)
 
 - In general, function keys are not supported on input. However,
 **emuterm** will try to translate arrow keys as defined by the termcap

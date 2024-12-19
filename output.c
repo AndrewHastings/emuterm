@@ -171,7 +171,8 @@ enum action {
 };
 
 enum state {
-	ST_NEXT = 0,		  /* continue to next step */
+	ST_UNSET = 0,
+	ST_NEXT,		  /* continue to next step */
 	ST_GET_1C,		  /* consume 1 char,   for %. and %+ */
 	ST_GET_DIGITS,		  /* any # of digits,  for %d */
 	ST_GET_3D,		  /* consume 3 digits, for %3 */
@@ -185,6 +186,7 @@ struct pentry {
 		enum state  pt_initial;
 	} pt_steps[2];			/* arg parsing steps */
 	short		pt_nsteps;
+	char		pt_cap[2];	/* capability that this came from */
 	enum action	pt_action;
 	void		*pt_ptr;	/* fmt or next parsetab */
 } parsetab[128] = { { .pt_action = AC_IGNORE, .pt_ptr = NULL } };
@@ -205,7 +207,7 @@ void dump_pt(struct pentry *pt, int indent)
 		fprintf(stderr, i >= 32 && i < 127 ? "  %c=" : "%03o=", i);
 		for (j = 0; j < pp->pt_nsteps; j++) {
 			fprintf(stderr, "%2.2s",
-			       "nx1cdd3d2d1d" + 2*pp->pt_steps[j].pt_initial);
+			       "--nx1cdd3d2d1d" + 2*pp->pt_steps[j].pt_initial);
 			if (pp->pt_steps[j].pt_inc)
 				fprintf(stderr, "+%d", pp->pt_steps[j].pt_inc);
 			fputc(',', stderr);
@@ -220,7 +222,7 @@ void dump_pt(struct pentry *pt, int indent)
 			break;
 
 		    case AC_NEXT:
-			fprintf(stderr, "{\n");
+			fprintf(stderr, "{\r\n");
 			dump_pt(pp->pt_ptr, indent+4);
 			fprintf(stderr, "%*s}",  indent+4, "");
 			break;
@@ -236,19 +238,31 @@ void dump_pt(struct pentry *pt, int indent)
 				fprintf(stderr, ",%c",
 					      " 12RL"[pp->pt_action - AC_FMT]);
 		}
-		fputc('\n', stderr);
+		fprintf(stderr, " [%2.2s]\r\n", pp->pt_cap);
 	}
 }
 
 
-char *add_parse(char *val, enum action action, char *rep)
+char *add_parse(char *cap, char *val, enum action action, char *rep)
 {
+	static char msg[128];
 	struct pentry *pt = parsetab, *ep = NULL;
 	struct step *step;
 	int nargs = 0;		    /* required # args */
 	int nfound = 0;		    /* total # '%' formats */
 	int incr = 0;		    /* '%i' present */
 	unsigned char c;
+
+	if (debug > 1) {
+		char *s;
+
+		fprintf(stderr, "%2.2s=", cap);
+		for (s = val; *s; s++)
+			fprintf(stderr,
+				*s >= 32 && *s < 127 ? "%c" : "\\%03o", *s);
+		fprintf(stderr, "\r\n");
+		dump_pt(parsetab, 2);
+	}
 
 	switch (action) {
 	    case AC_FMT:
@@ -261,6 +275,10 @@ char *add_parse(char *val, enum action action, char *rep)
 		break;
 
 	    default:
+		if (debug) {
+			fprintf(stderr, "internal error: action");
+			abort();
+		}
 		return "internal error: action";
 	}
 
@@ -277,12 +295,21 @@ char *add_parse(char *val, enum action action, char *rep)
 				pt = calloc(128, sizeof(struct pentry));
 				if (!pt)
 					return "out of memory";
+				ep->pt_cap[0] = cap[0];
+				ep->pt_cap[1] = cap[1];
 				ep->pt_ptr = pt;
+				if (ep->pt_nsteps < 2)
+					ep->pt_steps[ep->pt_nsteps].pt_initial
+								     = ST_NEXT;
 			}
 
 			ep = pt + c;
-			if (ep->pt_action > AC_NEXT)
-				return "conflict with another capability";
+			if (ep->pt_action > AC_NEXT &&
+			    (ep->pt_action != action || ep->pt_ptr != rep)) {
+				sprintf(msg, "conflict with '%2.2s' capability",
+					     ep->pt_cap);;
+				return msg;
+			}
 			pt = ep->pt_ptr;
 			ep->pt_action = AC_NEXT;
 			continue;
@@ -291,8 +318,11 @@ char *add_parse(char *val, enum action action, char *rep)
 		if (!ep)
 			return "first character is an argument";
 		step = ep->pt_steps + ep->pt_nsteps;
-		if (step->pt_initial)
-			return "conflict with another capability";
+		if (step->pt_initial) {
+			sprintf(msg, "conflict with '%2.2s' capability",
+				     ep->pt_cap);;
+			return msg;
+		}
 		switch (c = *val++) {
 		    case '\0':
 			return "% at end of value";
@@ -347,8 +377,17 @@ char *add_parse(char *val, enum action action, char *rep)
 
 	if (nfound != nargs)
 		return "incorrect # args";
-	if (ep->pt_action != AC_NEXT)
+	if (ep->pt_action != AC_NEXT) {
+		if (debug) {
+			fprintf(stderr, "internal error: next");
+			abort();
+		}
 		return "internal error: next";
+	}
+	if (!ep->pt_cap[0]) {
+		ep->pt_cap[0] = cap[0];
+		ep->pt_cap[1] = cap[1];
+	}
 	ep->pt_action = action;
 	ep->pt_ptr = rep;
 
@@ -410,6 +449,8 @@ char *get_strcap(char *cap)
 		rv++;
 	if (*rv >= '0' && *rv <= '9')
 		rv++;
+	if (*rv == '*')
+		rv++;
 	return rv;
 }
 
@@ -457,7 +498,8 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 				tp->tc_name);
 			return errbuf;
 		}
-		err = add_parse(cp, tp->tc_action, tp->tc_rep[has_sg]);
+		err = add_parse(tp->tc_name, cp, tp->tc_action,
+				tp->tc_rep[has_sg]);
 		if (err) {
 			sprintf(errbuf,
 				"Termcap '%s' capability unsupported: %s",
@@ -472,7 +514,7 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 		if (strcmp(cp, "\n") != 0 &&
 		    (down = get_strcap("do")) &&
 		     strcmp(cp, down) != 0) {
-			if (err = add_parse(cp, AC_FMT, ANSI_SCROLL_UP)) {
+			if (err = add_parse("sf", cp, AC_FMT, ANSI_SCROLL_UP)) {
 				sprintf(errbuf, "Termcap 'sf' capability "
 						"unsupported: %s", err);
 				return errbuf;
@@ -494,20 +536,20 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 		switch (pp->pt_action) {
 		    case AC_IGNORE:
 		    case AC_PRINT:
-			pp->pt_action = AC_PRINT;
 			break;
 
 		    case AC_FMT:
 			/* if "le" capability is already ^H, use ^H for both */
-			if (strcmp(pp->pt_ptr, ANSI_LEFT) == 0) {
-				pp->pt_action = AC_PRINT;
+			if (strcmp(pp->pt_ptr, ANSI_LEFT) == 0)
 				break;
-			}
 			/* FALL THRU */
 		    default:
 			return "Termcap 'bs' capability: "
 			       "conflict with another capability";
 		}
+		pp->pt_action = AC_PRINT;
+		pp->pt_cap[0] = 'b';
+		pp->pt_cap[1] = 's';
 	}
 	if (tgetflag("os"))
 		return "Termcap 'os' capability is unsupported";
@@ -529,6 +571,8 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 
 	/* all done */
 	term_set = 1;
+	if (debug)
+		dump_pt(parsetab, 0);
 	return NULL;
 }
 
@@ -573,14 +617,19 @@ next_level:
 			int v = c - '0';
 
 			if (nump >= 2) {
-				fprintf(stderr, "\r\ninternal error: params\n");
+				fprintf(stderr, "\r\ninternal error: params\r\n");
 				dump_pt(pt, 0);
+				if (debug)
+					abort();
 				return -1;
 			}
 			switch (state) {
+			    case ST_UNSET:
 			    case ST_NEXT:
-				fprintf(stderr, "\r\ninternal error: state\n");
+				fprintf(stderr, "\r\ninternal error: state\r\n");
 				dump_pt(pt, 0);
+				if (debug)
+					abort();
 				return -1;
 
 			    case ST_GET_DIGITS:
@@ -628,8 +677,10 @@ next_level:
 				if (pp->pt_action != AC_NEXT) {
 					/* add_parse should have ensured this */
 					fprintf(stderr, "\r\ninternal error: "
-							"%%d\n");
+							"%%d\r\n");
 					dump_pt(pt, 0);
+					if (debug)
+						abort();
 					return -1;
 				}
 				pt = pp->pt_ptr;
@@ -655,8 +706,10 @@ next_level:
 
 		    case AC_FMT1:
 			if (nump != 1) {
-				fprintf(stderr, "\r\ninternal error: fmt1\n");
+				fprintf(stderr, "\r\ninternal error: fmt1\r\n");
 				dump_pt(pt, 0);
+				if (debug)
+					abort();
 				return -1;
 			}
 
@@ -672,8 +725,10 @@ next_level:
 			/* FALL THRU */
 		    case AC_FMT2:
 			if (nump != 2) {
-				fprintf(stderr, "\r\ninternal error: fmt2\n");
+				fprintf(stderr, "\r\ninternal error: fmt2\r\n");
 				dump_pt(pt, 0);
+				if (debug)
+					abort();
 				return -1;
 			}
 

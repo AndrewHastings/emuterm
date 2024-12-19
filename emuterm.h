@@ -23,7 +23,7 @@
 #define _EMUTERM_H 1
 
 extern char *prog;
-extern int resize_win;
+extern int debug, resize_win;
 extern struct timespec odelay;
 extern void send_file(char *path);
 
