@@ -37,11 +37,15 @@ partially passed through at runtime.
 
 ## Additional Features
 
-- Emulate the output baud rates of old terminals (e.g., 300 baud or 30
-characters per second).
+- Since modern implementations of the **tset** program are no longer
+designed to set the TERMCAP environment variable, a new program **tsete**
+is included to provide that functionality.
+
+- **emuterm** can emulate the output baud rates of old terminals (e.g.,
+300 baud or 30 characters per second).
 
 To overcome the inability of X Windows to copy and paste non-printing
-characters:
+characters, **emuterm** can:
 
 - Selectively capture raw terminal output (including non-printing
 characters) to a file.
@@ -55,7 +59,9 @@ terminal input.
 
 - Digi-Log terminal documentation: https://bitsavers.org/pdf/digi-log/
 
-- Termcap file format: https://man.openbsd.org/termcap.5
+- Tset command: https://man.openbsd.org/OpenBSD-2.2/tset.1
+
+- Termcap file format: https://man.openbsd.org/OpenBSD-2.2/termcap.5
 
 - Termcap/Terminfo Resources Page: http://www.catb.org/~esr/terminfo/
 

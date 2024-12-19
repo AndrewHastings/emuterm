@@ -25,6 +25,10 @@
 #   termcap entry. If the latter, TERM must match the name in the termcap
 #   entry and the emuterm -t option.
 #
+# - Use "eval `tsete <termtype>`" to set TERM and TERMCAP to meet the
+#   requirements above. This emulates the functionality of the old BSD
+#   "eval `tset -Q -s <termtype>`".
+#
 # - If emuterm complains about an unsupported termcap capability, try
 #   removing that capability (or a conflicting capability) from your
 #   copy of the termcap file.

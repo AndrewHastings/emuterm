@@ -21,19 +21,22 @@ HDRS = emuterm.h input.h output.h termcap.h
 OBJS = emuterm.o input.o output.o termcap.o
 LIBS = -lutil
 
-all: emuterm termcap
+all: emuterm termcap tsete
 
 emuterm: $(OBJS)
 	$(CC) $(CFLAGS) -o emuterm $^ $(LIBS)
+
+tsete: tsete.o termcap.o
+	$(CC) $(CFLAGS) -o tsete $^
 
 termcap: extras.tc termtypes.tc
 	cat $^ > $@
 
 clean:
-	$(RM) $(OBJS)
+	$(RM) tsete.o $(OBJS)
 
 clobber:
-	$(RM) emuterm termcap $(OBJS)
+	$(RM) emuterm termcap tsete tsete.o $(OBJS)
 
 %.o : %.c $(HDRS)
 	$(CC) $(CFLAGS) -c $<
