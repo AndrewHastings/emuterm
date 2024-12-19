@@ -37,6 +37,8 @@
 #define ANSI_CLEAR_BELOW    "\e[J"
 #define ANSI_HOME	    "\e[H"
 #define ANSI_LEFT	    "\e[D"	    /* acts differently than '\b'? */
+#define ANSI_NORMAL	    "\e[m"
+#define ANSI_INVERSE	    "\e[7m"
 #define ANSI_SCROLL_UP	    "\e[S"
 #define ANSI_SET_ROW	    "\e[%dH"
 #define ANSI_SCROLL_REGION  "\e[;%dr"
@@ -407,6 +409,7 @@ struct tcap {
 	"al", AC_FMT,    N("\e[L"),	/* ANSI insert line */
 	"bc", AC_FMT,    N("\b"),	/* ^H */
 	"bl", AC_FMT,    N("\a"),	/* ^G */
+	"bt", AC_FMT,    N("\e[Z"),	/* ANSI reverse tab */
 	"cd", AC_FMT,    N(ANSI_CLEAR_BELOW),
 	"ce", AC_FMT,    N("\e[K"),	/* ANSI clear to right */
 	"cl", AC_FMT,    N(ANSI_CLEAR),
@@ -416,17 +419,30 @@ struct tcap {
 	"dc", AC_FMT,    N("\e[P"),	/* ANSI delete character */
 	"dl", AC_FMT,    N("\e[M"),	/* ANSI delete line */
 	"do", AC_FMT,    N("\n"),	/* ^J */
+	"ds", AC_FMT,    N(""),		/* ignore */
+	"fs", AC_FMT,    N("\e\\"),	/* DEC string terminator */
 	"ho", AC_FMT,    N(ANSI_HOME),
 	"ic", AC_FMT,    N("\e[@"),	/* ANSI insert character */
 	"ke", AC_FMT,    N(""),		/* ignore */
 	"ks", AC_FMT,    N(""),		/* ignore */
 	"le", AC_FMT,    N(ANSI_LEFT),
 	"ll", AC_LL,     N(ANSI_SET_ROW),
+	"md", AC_FMT,    S("\e[1m"),	/* ANSI bold */
+	"me", AC_FMT,    E(ANSI_NORMAL),
+	"mr", AC_FMT,    S(ANSI_INVERSE),
 	"nd", AC_FMT,    N("\e[C"),	/* ANSI right */
-	"se", AC_FMT,    E("\e[m"),	/* ANSI normal */
-	"so", AC_FMT,    S("\e[7m"),	/* ANSI inverse */
+	"rc", AC_FMT,    N("\e8"),	/* DEC restore cursor position */
+	"sc", AC_FMT,    N("\e7"),	/* DEC save cursor position */
+	"se", AC_FMT,    E(ANSI_NORMAL),
+	"so", AC_FMT,    S(ANSI_INVERSE),
 	"ta", AC_FMT,    N("\t"),	/* ^I */
+	"ts", AC_FMT,    N("\e]0;"),	/* xterm set title */
+	"ue", AC_FMT,    E(ANSI_NORMAL),
 	"up", AC_FMT,    N("\e[A"),	/* ANSI up */
+	"us", AC_FMT,    S("\e[4m"),	/* ANSI underscore */
+	"ve", AC_FMT,    N(""),		/* ignore */
+	"vi", AC_FMT,    N(""),		/* ignore */
+	"vs", AC_FMT,    N(""),		/* ignore */
 	"",   0,         N(NULL)
 };
 #undef E
@@ -482,6 +498,8 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 		return "Termcap 'sg' capability > 1 is unsupported";
 	if (has_sg < 0)
 		has_sg = 0;
+	if (!has_sg && tgetnum("ug") > 0)
+		return "Termcap 'ug' without 'sg' capability is unsupported";
 
 	/* string capabilities */
 	parsetab['\n'].pt_action = AC_PRINT;
