@@ -144,6 +144,21 @@ find_capability (bp, cap)
   return NULL;
 }
 
+/* Remove a capability and its value; bp is from find_capability. */
+static void
+erase_cap(bp)
+     register char *bp;
+{
+  register int c;
+
+  if (!bp)
+    return;
+  bp -= 3;
+  while ((c = *bp++) && c != ':')
+    *(bp-1) = ' ';
+}
+
+
 int
 tgetnum (cap)
      char *cap;
@@ -548,6 +563,7 @@ tgetent (bp, name)
     {
       strcpy (bp, tcenv);
       bp1 += strlen (tcenv);
+      erase_cap(find_capability (bp, "tc"));
     }
 
   while (term)
@@ -578,6 +594,13 @@ tgetent (bp, name)
 
       /* Copy the line of the entry from buf into bp.  */
       termcap_name = buf.ptr;
+      if (bp1 != bp)
+        {
+	    /* This isn't the first terminal name so skip over this name. */
+	    while ((c = *termcap_name++) && c != ':')
+	      ;
+	    termcap_name--;
+        }
       while ((*bp1++ = c = *termcap_name++) && c != '\n')
 	/* Drop out any \ newline sequence.  */
 	if (c == '\\' && *termcap_name == '\n')
@@ -591,6 +614,7 @@ tgetent (bp, name)
 	 If something is found, copy it into heap and null-terminate it.  */
       tc_search_point = find_capability (tc_search_point, "tc");
       term = tgetst1 (tc_search_point, (char **) 0);
+      erase_cap(tc_search_point);
     }
 
   close (fd);
