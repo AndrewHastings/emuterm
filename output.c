@@ -51,6 +51,9 @@
 int term_set, term_am;
 int term_cols, term_lines;
 
+char *term_arrows[4] = {"", "", "", ""};    /* up, down, right, left */
+char arrow_caps[] = "kukdkrkl";
+
 
 void omode(int raw)
 {
@@ -443,6 +446,12 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 				return errbuf;
 			}
 		}
+	}
+
+	/* arrow keys */
+	for (c = 0; c < 4; c++) {
+		if (cp = get_strcap(arrow_caps + c*2))
+			term_arrows[c] = cp;
 	}
 
 	/* numeric capabilities */

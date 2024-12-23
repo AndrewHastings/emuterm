@@ -32,8 +32,8 @@ typically needed by old **vi** implementations. **emuterm** detects some
 unsupported capabilities at startup, but others may be ignored or
 partially passed through at runtime.
 
-- Handles only output control sequences, not input control sequences
-(e.g., as sent by arrow and function keys).
+- Function keys are not supported, but **emuterm** will try to translate
+arrow keys as defined by the "ku", "kd", "kr", "kl" capabilities.
 
 ## Additional Features
 

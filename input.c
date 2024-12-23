@@ -21,6 +21,7 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include <termio.h>
 #define __USE_GNU /* for sighandler_t */
@@ -33,12 +34,12 @@
 /* read input from user, write to slave pty */
 int handle_input(int mfd)
 {
-	int ic, rv = 0;
+	int ic, nc, rv = 0;
 	char buf[128], *bp;	/* user input */
 	char obuf[512], *op;	/* output to user */
-	char wbuf[128], *wp;	/* write to slave */
+	char wbuf[256], *wp;	/* write to slave */
 	sighandler_t osig;
-	static char cmd[512] = "C", *cp = cmd+1;
+	static char cmd[512] = "C", *cp = cmd+1; /* state 1 initially */
 
 	if ((ic = read(STDIN_FILENO, buf, sizeof buf)) <= 0)
 		return ic;
@@ -49,41 +50,59 @@ int handle_input(int mfd)
 
 	/*
 	 * Iterate through user input, copy to slave by default.
-	 * Once the start of a "~" command sequence is recognized,
-	 * stop copying to slave and instead echo back to user.
-	 * Command sequence is terminated by a newline or another "~".
+	 * - Once the start of a "~" command sequence is recognized,
+	 *   stop copying to slave and instead echo back to user.
+	 *   Command sequence is terminated by a newline or another "~".
+	 * - If not in a "~" command sequence, recognize xterm arrow
+	 *   keys and translate to emulated terminal (if emulating).
 	 */
 	for ( ; bp < buf + ic; bp++) {
-		char c = *bp;
+		char cc, c = *bp;
 
-		/* Command sequence must immediately follow newline. */
+		if (cp < cmd+2 &&	    /* not yet in state 2 */
+		    term_set &&		    /* emulating */
+		    c == '\033' &&	    /* starts with ESC */
+		    bp + 2 < buf + ic &&    /* potential xterm key sequence */
+		    (bp[1] == '[' || bp[1] == 'O')) {
+			switch (cc = bp[2]) {
+			    case 'A': case 'B': case 'C': case 'D':
+				nc = strlen(term_arrows[cc - 'A']);
+				memcpy(wp, term_arrows[cc - 'A'], nc);
+				wp += nc;
+				bp += 2;
+				cp = cmd;   /* reset to state 0 */
+				continue;
+			}
+		}
+
+		/* State 0: check for newline */
 		if (cp == cmd) {
 			if (c == '\r' || c == '\n')
-				cp++;
+				cp++;	    /* advance to state 1 */
 			*wp++ = c;
 			continue;
 		}
 
-		/* Is the next character "~"? */
+		/* State 1: check for "~" */
 		if (cp == cmd+1) {
 			if (c == '~') {
-				*cp++ = c;
+				*cp++ = c;  /* advance to state 2 */
 				*op++ = c;
 			} else {
-				cp = cmd;
+				cp = cmd;   /* reset to state 0 */
 				*wp++ = c;
 			}
 			continue;
 		}
 
-		/* "~~" sends a single "~" */
+		/* State 2: check for "~~" */
 		if (cp == cmd+2 && c == '~') {
-			cp = cmd;
+			cp = cmd;	    /* reset to state 0 */
 			*wp++ = c;
 			continue;
 		}
 
-		/* Perform rudimentary line editing. */
+		/* State 2+: perform rudimentary line editing. */
 		switch (c) {
 		    case '\025': case '\030':	/* ^U, ^X: erase line */
 			while (cp > cmd+1) {
@@ -137,7 +156,7 @@ int handle_input(int mfd)
 			write(STDOUT_FILENO, obuf, op-obuf);
 		wp = wbuf;
 		op = obuf;
-		cp = cmd+1;
+		cp = cmd+1;	/* back to state 1 after handling command */
 
 		/* Handle command. */
 		switch (c = cmd[2]) {
