@@ -50,7 +50,7 @@
 #define DEC_MARGINS_OFF	    "\e[?69l"
 #define DEC_MARGINS_SET	    "\e[1;%ds"
 
-int term_set, term_am;
+int term_set, term_am, term_hz;
 int term_cols, term_lines;
 
 char *term_arrows[4] = {"", "", "", ""};    /* up, down, right, left */
@@ -425,7 +425,6 @@ struct tcap {
 	"ic", AC_FMT,    N("\e[@"),	/* ANSI insert character */
 	"ke", AC_FMT,    N(""),		/* ignore */
 	"ks", AC_FMT,    N(""),		/* ignore */
-	"le", AC_FMT,    N(ANSI_LEFT),
 	"ll", AC_LL,     N(ANSI_SET_ROW),
 	"md", AC_FMT,    S("\e[1m"),	/* ANSI bold */
 	"me", AC_FMT,    E(ANSI_NORMAL),
@@ -434,7 +433,6 @@ struct tcap {
 	"rc", AC_FMT,    N("\e8"),	/* DEC restore cursor position */
 	"sc", AC_FMT,    N("\e7"),	/* DEC save cursor position */
 	"se", AC_FMT,    E(ANSI_NORMAL),
-	"so", AC_FMT,    S(ANSI_INVERSE),
 	"ta", AC_FMT,    N("\t"),	/* ^I */
 	"ts", AC_FMT,    N("\e]0;"),	/* xterm set title */
 	"ue", AC_FMT,    E(ANSI_NORMAL),
@@ -474,7 +472,7 @@ char *get_strcap(char *cap)
 char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 {
 	static char tbuf[2048];	/* returned termcap entry */
-	char *cp, *err;
+	char *cp, *err, *s;
 	struct tcap *tp;
 	int c, has_sg, rv;
 
@@ -483,6 +481,39 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 		return "No termcap file found, try setting TERMPATH";
 	if (rv == 0)
 		return "Terminal type not found in termcap database";
+
+	parsetab['\n'].pt_action = AC_PRINT;
+	parsetab['\r'].pt_action = AC_PRINT;
+	for (c = 32; c < 127; c++)	/* initialize printable chars */
+		parsetab[c].pt_action = AC_PRINT;
+
+	/* Boolean capabilities */
+	term_am = tgetflag("am");
+	if (tgetflag("bs")) {
+		struct pentry *pp = parsetab + '\b';
+
+		pp->pt_action = AC_PRINT;
+		pp->pt_cap[0] = 'b';
+		pp->pt_cap[1] = 's';
+	}
+	term_hz = tgetflag("hz");
+	if (tgetflag("os"))
+		return "Termcap 'os' capability is unsupported";
+	if (tgetflag("x7")) {			/* CDC 713 glitch */
+		struct pentry *pp;
+
+		pp = parsetab + '\003';		/* ETX */
+		pp->pt_action = AC_FMT;
+		pp->pt_cap[0] = 'x';
+		pp->pt_cap[1] = '7';
+		pp->pt_ptr = "▲";
+
+		pp = parsetab + '\177';		/* DEL */
+		pp->pt_action = AC_FMT;
+		pp->pt_cap[0] = 'x';
+		pp->pt_cap[1] = '7';
+		pp->pt_ptr = "■";
+	}
 
 	/* numeric capabilities */
 	term_cols = tgetnum("co");
@@ -502,11 +533,6 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 		return "Termcap 'ug' without 'sg' capability is unsupported";
 
 	/* string capabilities */
-	parsetab['\n'].pt_action = AC_PRINT;
-	parsetab['\r'].pt_action = AC_PRINT;
-	for (c = 32; c < 127; c++)	/* initialize printable chars */
-		parsetab[c].pt_action = AC_PRINT;
-
 	for (tp = tcaps; tp->tc_name[0]; tp++) {
 		if (!(cp = get_strcap(tp->tc_name)))
 			continue;
@@ -525,13 +551,23 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 			return errbuf;
 		}
 	}
-	if (cp = get_strcap("sf")) {
-		char *down;
 
-		/* if "sf" is not newline and not the same as "do", add it */
+	/* if "le" differs from "bs" and "bc", add it */
+	if (cp = get_strcap("le")) {
+		if ((!tgetflag("bs") || strcmp(cp, "\b") != 0) &&
+		    (!(s = get_strcap("bc")) || strcmp(cp, s) != 0)) {
+			if (err = add_parse("le", cp, AC_FMT, ANSI_LEFT)) {
+				sprintf(errbuf, "Termcap 'le' capability "
+						"unsupported: %s", err);
+				return errbuf;
+			}
+		}
+	}
+
+	/* if "sf" differs from "do" and newline, add it */
+	if (cp = get_strcap("sf")) {
 		if (strcmp(cp, "\n") != 0 &&
-		    (down = get_strcap("do")) &&
-		     strcmp(cp, down) != 0) {
+		    (!(s = get_strcap("do")) || strcmp(cp, s) != 0)) {
 			if (err = add_parse("sf", cp, AC_FMT, ANSI_SCROLL_UP)) {
 				sprintf(errbuf, "Termcap 'sf' capability "
 						"unsupported: %s", err);
@@ -540,51 +576,23 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 		}
 	}
 
+	/* if "so" differs from "md" and "us", add it */
+	if (cp = get_strcap("so")) {
+		if ((!(s = get_strcap("md")) || strcmp(cp, s) != 0) &&
+		    (!(s = get_strcap("us")) || strcmp(cp, s) != 0)) {
+			if (err = add_parse("so", cp, AC_FMT, ANSI_INVERSE)) {
+				sprintf(errbuf, "Termcap 'so' capability "
+						"unsupported: %s", err);
+				return errbuf;
+			}
+		}
+		/* N.B. "mb" and "mh" not yet supported */
+	}
+
 	/* arrow keys */
 	for (c = 0; c < 4; c++) {
 		if (cp = get_strcap(arrow_caps + c*2))
 			term_arrows[c] = cp;
-	}
-
-	/* Boolean capabilities */
-	term_am = tgetflag("am");
-	if (tgetflag("bs")) {
-		struct pentry *pp = parsetab + '\b';
-
-		switch (pp->pt_action) {
-		    case AC_IGNORE:
-		    case AC_PRINT:
-			break;
-
-		    case AC_FMT:
-			/* if "le" capability is already ^H, use ^H for both */
-			if (strcmp(pp->pt_ptr, ANSI_LEFT) == 0)
-				break;
-			/* FALL THRU */
-		    default:
-			return "Termcap 'bs' capability: "
-			       "conflict with another capability";
-		}
-		pp->pt_action = AC_PRINT;
-		pp->pt_cap[0] = 'b';
-		pp->pt_cap[1] = 's';
-	}
-	if (tgetflag("os"))
-		return "Termcap 'os' capability is unsupported";
-	if (tgetflag("x7")) {			/* CDC 713 glitch */
-		struct pentry *pp;
-
-		pp = parsetab + '\003';		/* ETX */
-		if (!pp->pt_action) {
-			pp->pt_action = AC_FMT;
-			pp->pt_ptr = "▲";
-		}
-
-		pp = parsetab + '\177';		/* DEL */
-		if (!pp->pt_action) {
-			pp->pt_action = AC_FMT;
-			pp->pt_ptr = "■";
-		}
 	}
 
 	/* all done */
@@ -750,9 +758,15 @@ next_level:
 				return -1;
 			}
 
+			/* Hazeltine row/col. can be specified multiple ways */
+			if (term_hz) {
+				p[0] %= 32;
+				p[1] %= 96;
+			}
+
 			/* ensure in range */
-			p[0] %= term_lines;
-			p[1] %= term_cols;
+			p[0] = MIN(p[0], term_lines-1);
+			p[1] = MIN(p[1], term_cols-1);
 
 			/* termcap row, col are 0-based, ANSI is 1-based */
 			rv = dprintf(STDOUT_FILENO, (char *)pp->pt_ptr,

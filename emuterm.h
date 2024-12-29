@@ -22,6 +22,8 @@
 #ifndef _EMUTERM_H
 #define _EMUTERM_H 1
 
+#define MIN(a, b)	((a) < (b) ? (a) : (b))
+
 extern char *prog;
 extern int debug, resize_win;
 extern struct timespec odelay;
