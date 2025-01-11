@@ -1,5 +1,5 @@
 #
-# Copyright 2024 Andrew B. Hastings. All rights reserved.
+# Copyright 2024, 2025 Andrew B. Hastings. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -21,6 +21,8 @@ HDRS = emuterm.h input.h output.h termcap.h
 OBJS = emuterm.o input.o output.o termcap.o
 LIBS = -lutil
 
+BSD = https://www.tuhs.org/cgi-bin/utree.pl?file=4.4BSD/etc/termcap
+
 all: emuterm termcap tsete
 
 emuterm: $(OBJS)
@@ -30,13 +32,20 @@ tsete: tsete.o termcap.o
 	$(CC) $(CFLAGS) -o tsete $^
 
 termcap: extras.tc termtypes.tc
-	cat $^ > $@
+	wget -O - $(BSD) | sed -e '1,/<pre>/d' -e '/<\/pre>/,$$d' -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/&quot;/"/g' -e "s/&#39;/'/g" -e 's/&amp;/\&/g' > bsd.tc
+	@if [ -s bsd.tc ]; then \
+		echo 'cat $< bsd.tc > $@'; \
+		cat $< bsd.tc > $@; \
+	else \
+		echo 'cat $^ > $@'; \
+		cat $^ > $@; \
+	fi
 
 clean:
-	$(RM) tsete.o $(OBJS)
+	$(RM) bsd.tc tsete.o $(OBJS)
 
 clobber:
-	$(RM) emuterm termcap tsete tsete.o $(OBJS)
+	$(RM) emuterm termcap bsd.tc tsete tsete.o $(OBJS)
 
 %.o : %.c $(HDRS)
 	$(CC) $(CFLAGS) -c $<
