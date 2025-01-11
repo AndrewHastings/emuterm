@@ -38,6 +38,7 @@
 #define ANSI_HOME	    "\e[H"
 #define ANSI_LEFT	    "\e[D"	    /* acts differently than '\b'? */
 #define ANSI_NORMAL	    "\e[m"
+#define ANSI_BOLD	    "\e[1m"
 #define ANSI_INVERSE	    "\e[7m"
 #define ANSI_SCROLL_UP	    "\e[S"
 #define ANSI_SET_ROW	    "\e[%dH"
@@ -163,13 +164,14 @@ void save_output(char *path)
 /* parse table for output */
 enum action {
 	AC_IGNORE = 0,		  /* no action (default) */
-	AC_PRINT = AC_IGNORE+1,	  /* print as-is */
-	AC_NEXT = AC_PRINT+1,	  /* continue to next parse table */
+	AC_NEXT,		  /* continue to next parse table */
+	AC_PRINT = AC_NEXT+1,	  /* print as-is */
 	AC_FMT,			  /* print constant string */
 	AC_FMT1 = AC_FMT+1,	  /* format string w/1 integer argument */
 	AC_FMT2 = AC_FMT1+1,	  /* format string w/2 integer arguments */
 	AC_FMT2_REV = AC_FMT2+1,  /* AC_FMT2 w/args swapped */
 	AC_LL = AC_FMT2_REV+1,    /* format string w/#lines */
+	AC_STLINE = AC_LL+1,	  /* AC_FMT, optional argument ignored */
 };
 
 enum state {
@@ -206,7 +208,7 @@ void dump_pt(struct pentry *pt, int indent)
 			continue;
 		if (indent)
 			fprintf(stderr, "%*s",  indent, "");
-		fprintf(stderr, i >= 32 && i < 127 ? "  %c=" : "%03o=", i);
+		fprintf(stderr, i > 32 && i < 127 ? "  %c=" : "%03o=", i);
 		for (j = 0; j < pp->pt_nsteps; j++) {
 			fprintf(stderr, "%2.2s",
 			       "--nx1cdd3d2d1d" + 2*pp->pt_steps[j].pt_initial);
@@ -219,26 +221,26 @@ void dump_pt(struct pentry *pt, int indent)
 		        fprintf(stderr, "ignore"); break;
 			break;
 
-		    case AC_PRINT:
-		        fprintf(stderr, "print"); break;
-			break;
-
 		    case AC_NEXT:
 			fprintf(stderr, "{\r\n");
 			dump_pt(pp->pt_ptr, indent+4);
 			fprintf(stderr, "%*s}",  indent+4, "");
 			break;
 
-		    default:  /* AC_FMT*, AC_LL */
+		    case AC_PRINT:
+		        fprintf(stderr, "print"); break;
+			break;
+
+		    default:  /* AC_FMT*, AC_LL, AC_STLINE */
 			fputc('"', stderr);
 			for (s = pp->pt_ptr; *s; s++)
-				fprintf(stderr,
+				fprintf(stderr, *s == '\\' ? "\\%c" :
 					*s >= 32 && *s < 127 ? "%c" : "\\%03o",
 					*s);
 			fputc('"', stderr);
 			if (pp->pt_action > AC_FMT)
 				fprintf(stderr, ",%c",
-					      " 12RL"[pp->pt_action - AC_FMT]);
+					      " 12RLS"[pp->pt_action - AC_FMT]);
 		}
 		fprintf(stderr, " [%2.2s]\r\n", pp->pt_cap);
 	}
@@ -256,7 +258,7 @@ char *add_parse(char *cap, char *val, enum action action, char *rep)
 	unsigned char c;
 
 	if (debug > 1) {
-		char *s;
+		unsigned char *s;
 
 		fprintf(stderr, "add %2.2s=", cap);
 		for (s = val; *s; s++)
@@ -266,14 +268,30 @@ char *add_parse(char *cap, char *val, enum action action, char *rep)
 		dump_pt(parsetab, 2);
 	}
 
+	/* ignore capabilities with empty values (typically 'im', 'ei') */
+	if (!*val)
+		return NULL;
+
 	switch (action) {
 	    case AC_FMT:
+		if (val[0] == rep[0] && !val[1] && !rep[1]) {
+			/* shortcut: print single char as-is */
+			nargs = 0;
+			action = AC_PRINT;
+			rep = NULL;
+			break;
+		}
+		/* FALL THRU */
 	    case AC_FMT1:
 	    case AC_FMT2:
 		nargs = action - AC_FMT;
 		break;
 
 	    case AC_LL:
+		break;
+
+	    case AC_STLINE:
+		nargs = 1;		/* max */
 		break;
 
 	    default:
@@ -285,6 +303,8 @@ char *add_parse(char *cap, char *val, enum action action, char *rep)
 	}
 
 	while (c = *val++) {
+		if (c == u'\200')	/* embedded NUL in control seq. */
+			c = 0;
 		if (c > 127)
 			return "non-ASCII character";
 
@@ -322,7 +342,7 @@ char *add_parse(char *cap, char *val, enum action action, char *rep)
 		step = ep->pt_steps + ep->pt_nsteps;
 		if (step->pt_initial) {
 			sprintf(msg, "conflict with '%2.2s' capability",
-				     ep->pt_cap);;
+				     ep->pt_cap);
 			return msg;
 		}
 		switch (c = *val++) {
@@ -377,7 +397,7 @@ char *add_parse(char *cap, char *val, enum action action, char *rep)
 		ep->pt_nsteps++;
 	}
 
-	if (nfound != nargs)
+	if (action != AC_STLINE && nfound != nargs)
 		return "incorrect # args";
 	if (ep->pt_action != AC_NEXT) {
 		if (debug) {
@@ -420,13 +440,16 @@ struct tcap {
 	"dl", AC_FMT,    N("\e[M"),	/* ANSI delete line */
 	"do", AC_FMT,    N("\n"),	/* ^J */
 	"ds", AC_FMT,    N(""),		/* ignore */
+	"ei", AC_FMT,    N("\e[4l"),	/* ANSI replace mode */
 	"fs", AC_FMT,    N("\e\\"),	/* DEC string terminator */
 	"ho", AC_FMT,    N(ANSI_HOME),
 	"ic", AC_FMT,    N("\e[@"),	/* ANSI insert character */
+	"im", AC_FMT,    N("\e[4h"),	/* ANSI insert mode */
 	"ke", AC_FMT,    N(""),		/* ignore */
 	"ks", AC_FMT,    N(""),		/* ignore */
 	"ll", AC_LL,     N(ANSI_SET_ROW),
-	"md", AC_FMT,    S("\e[1m"),	/* ANSI bold */
+	"mb", AC_FMT,    N("\e[5m"),	/* ANSI blink */
+	"mh", AC_FMT,    N("\e[2m"),	/* ANSI faint */
 	"me", AC_FMT,    E(ANSI_NORMAL),
 	"mr", AC_FMT,    S(ANSI_INVERSE),
 	"nd", AC_FMT,    N("\e[C"),	/* ANSI right */
@@ -434,7 +457,7 @@ struct tcap {
 	"sc", AC_FMT,    N("\e7"),	/* DEC save cursor position */
 	"se", AC_FMT,    E(ANSI_NORMAL),
 	"ta", AC_FMT,    N("\t"),	/* ^I */
-	"ts", AC_FMT,    N("\e]0;"),	/* xterm set title */
+	"ts", AC_STLINE, N("\e]0;"),	/* xterm set title */
 	"ue", AC_FMT,    E(ANSI_NORMAL),
 	"up", AC_FMT,    N("\e[A"),	/* ANSI up */
 	"us", AC_FMT,    S("\e[4m"),	/* ANSI underscore */
@@ -496,9 +519,19 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 		pp->pt_cap[0] = 'b';
 		pp->pt_cap[1] = 's';
 	}
-	term_hz = tgetflag("hz");
+	if (tgetflag("hz")) {
+		parsetab['~'].pt_action = AC_IGNORE;
+		term_hz = 1;
+	}
 	if (tgetflag("os"))
 		return "Termcap 'os' capability is unsupported";
+	if (tgetflag("pt")) {
+		struct pentry *pp = parsetab + '\t';
+
+		pp->pt_action = AC_PRINT;
+		pp->pt_cap[0] = 'p';
+		pp->pt_cap[1] = 't';
+	}
 	if (tgetflag("x7")) {			/* CDC 713 glitch */
 		struct pentry *pp;
 
@@ -576,17 +609,30 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 		}
 	}
 
-	/* if "so" differs from "md" and "us", add it */
+	/* if "md" differs from "mr", add it */
+	if (cp = get_strcap("md")) {
+		if (!(s = get_strcap("mr")) || strcmp(cp, s) != 0) {
+			s = has_sg ? ANSI_BOLD "«" : ANSI_BOLD;
+			if (err = add_parse("md", cp, AC_FMT, s)) {
+				sprintf(errbuf, "Termcap 'md' capability "
+						"unsupported: %s", err);
+				return errbuf;
+			}
+		}
+	}
+
+	/* if "so" differs from "md", "mr", and "us", add it */
 	if (cp = get_strcap("so")) {
 		if ((!(s = get_strcap("md")) || strcmp(cp, s) != 0) &&
+		    (!(s = get_strcap("mr")) || strcmp(cp, s) != 0) &&
 		    (!(s = get_strcap("us")) || strcmp(cp, s) != 0)) {
-			if (err = add_parse("so", cp, AC_FMT, ANSI_INVERSE)) {
+			s = has_sg ? ANSI_INVERSE "«" : ANSI_INVERSE;
+			if (err = add_parse("so", cp, AC_FMT, s)) {
 				sprintf(errbuf, "Termcap 'so' capability "
 						"unsupported: %s", err);
 				return errbuf;
 			}
 		}
-		/* N.B. "mb" and "mh" not yet supported */
 	}
 
 	/* arrow keys */
@@ -756,6 +802,7 @@ next_level:
 			    case AC_FMT2:     fprintf(stderr, "FM2\r\n"); break;
 			    case AC_FMT2_REV: fprintf(stderr, "F2R\r\n"); break;
 			    case AC_LL:	      fprintf(stderr, "LL \r\n"); break;
+			    case AC_STLINE:   fprintf(stderr, "STL\r\n"); break;
 			    default:	      fprintf(stderr, "?%d?\r\n",
 							      pp->pt_action);
 			}
@@ -774,6 +821,7 @@ log_end:
 			break;
 
 		    case AC_FMT:
+		    case AC_STLINE:
 			rv = dprintf(STDOUT_FILENO, (char *)pp->pt_ptr);
 			break;
 
