@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Andrew B. Hastings. All rights reserved.
+ * Copyright 2024, 2025 Andrew B. Hastings. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -112,7 +112,7 @@ void cleanup(int sig)
 	omode(0);
 
 	if (sig) {
-		psignal(sig, NULL);
+		dprintf(STDOUT_FILENO, "emuterm: %s\n", strsignal(sig));
 		exit(1);
 	}
 }
@@ -144,15 +144,19 @@ void pty_master(int mfd, pid_t cpid)
 	for (;;) {
 
 		if (poll(pfds, npoll, -1) < 0) {
-			perror("\r\npoll");
+			dprintf(STDOUT_FILENO, "\r\npoll: %s\r\n",
+					       strerror(errno));
 			break;
 		}
 
 		/* Output from slave? */
 		if (pfds[0].revents & (POLLIN|POLLERR))
 			if (handle_output(mfd) < 0) {
-				if (errno)
-					perror("\r\nhandle_output");
+				if (errno) {
+					dprintf(STDOUT_FILENO,
+						"\r\nhandle_output: %s\r\n",
+						strerror(errno));
+				}
 				break;
 			}
 
@@ -160,8 +164,11 @@ void pty_master(int mfd, pid_t cpid)
 		if (sendfd < 0) {
 			if (pfds[1].revents & (POLLIN|POLLERR))
 				if (handle_input(mfd) < 0) {
-					if (errno)
-						perror("\r\nhandle_input");
+					if (errno) {
+						dprintf(STDOUT_FILENO,
+							"\r\nhandle_input: %s\r\n",
+							strerror(errno));
+					}
 					break;
 				}
 			if (sendfd < 0)

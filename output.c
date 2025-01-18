@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Andrew B. Hastings. All rights reserved.
+ * Copyright 2024, 2025 Andrew B. Hastings. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -258,7 +258,7 @@ char *add_parse(char *cap, char *val, enum action action, char *rep)
 	if (debug > 1) {
 		char *s;
 
-		fprintf(stderr, "%2.2s=", cap);
+		fprintf(stderr, "add %2.2s=", cap);
 		for (s = val; *s; s++)
 			fprintf(stderr,
 				*s >= 32 && *s < 127 ? "%c" : "\\%03o", *s);
@@ -597,8 +597,19 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 
 	/* all done */
 	term_set = 1;
-	if (debug)
+	if (debug) {
+		if (debug > 1)
+			fprintf(stderr, "parsetab:\n");
 		dump_pt(parsetab, 0);
+		for (c = 0; c < 4; c++) {
+			fprintf(stderr, "%2.2s=\"", arrow_caps + c*2);
+			for (s = term_arrows[c]; *s; s++)
+				fprintf(stderr, *s == '\\' ? "\\%c" :
+					*s >= 32 && *s < 127 ? "%c" : "\\%03o",
+					*s);
+			fprintf(stderr, "\"\n");
+		}
+	}
 	return NULL;
 }
 
@@ -609,6 +620,8 @@ int handle_output(int mfd)
 	static struct pentry *pt = parsetab;
 	static struct pentry *pp = NULL;
 	static int nump = 0, p[2] = { 0, 0 };
+	static char prevc = -1;
+	static enum action prev_action = -1;
 	static enum state state;
 	static int step;
 	int i, t, rc, rv = 0;
@@ -626,7 +639,10 @@ int handle_output(int mfd)
 				break;
 			continue;
 		}
-		c = buf[i] & 0x7f;	/* strip parity bit */
+		if (debug > 2 && prevc >= 0)
+			fprintf(stderr, prevc == '\\' ? "\\%c" :
+			   prevc > 32 && prevc < 127 ? "%c" : "\\%03o", prevc);
+		prevc = c = buf[i] & 0x7f;	/* strip parity bit */
 
 next_level:
 		if (!pp) {
@@ -715,6 +731,37 @@ next_level:
 			}
 
 			/* fall through to do action */
+		}
+
+		/* log the action for this character sequence */
+		if (debug > 2) {
+			/* log contiguous PRINT actions in a single group */
+			if (prev_action == AC_PRINT &&
+			    pp->pt_action != prev_action)
+				fprintf(stderr, " PRT\r\n");
+			if (pp->pt_action == AC_PRINT)
+				goto log_end;
+
+			fprintf(stderr, c == '\\' ? "\\%c" :
+				c > 32 && c < 127 ? "%c" : "\\%03o", c);
+			prevc = -1;
+			if (pp->pt_action == AC_NEXT)
+				goto log_end;
+
+			fprintf(stderr, " [%2.2s] ", pp->pt_cap);
+			switch (pp->pt_action) {
+			    case AC_IGNORE:   fprintf(stderr, "IGN\r\n"); break;
+			    case AC_FMT:      fprintf(stderr, "FMT\r\n"); break;
+			    case AC_FMT1:     fprintf(stderr, "FM1\r\n"); break;
+			    case AC_FMT2:     fprintf(stderr, "FM2\r\n"); break;
+			    case AC_FMT2_REV: fprintf(stderr, "F2R\r\n"); break;
+			    case AC_LL:	      fprintf(stderr, "LL \r\n"); break;
+			    default:	      fprintf(stderr, "?%d?\r\n",
+							      pp->pt_action);
+			}
+
+log_end:
+			prev_action = pp->pt_action;
 		}
 
 #pragma GCC diagnostic ignored "-Wformat-security"
