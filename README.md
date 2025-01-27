@@ -44,13 +44,20 @@ sequences.)
 **emuterm** will try to translate arrow keys as defined by the termcap
 "ku", "kd", "kr", and "kl" capabilities.
 
-Caveat:
+Caveats:
 
 - The modern **vim** and **ncurses** have some limitations in supporting
 old serial terminals that the original BSD **vi** and **curses** did *not*
 have. In particular, **vim** requires the termcap "cm" capability while
 BSD **vi** did not. Try running a "cdc713" terminal type with the
 "Traditional Vi" (see "References" below) versus running with **vim**.
+
+- The modern **terminfo** database defines some terminal capabilities
+differently than the BSD **termcap** file. As a result, **emuterm** may
+ignore or mishandle some control sequences sent by **vim** when run
+against old terminals. To avoid this problem, follow the instructions in
+the included **termcap** file to add the **termcap** version of the
+terminal's capabilities to the **terminfo** database.
 
 ## Additional Features
 
@@ -83,6 +90,8 @@ terminal input.
 - Termcap/Terminfo Resources Page: http://www.catb.org/~esr/terminfo/
 
 - HP2000 TSB simulator: https://simh.trailing-edge.com/hp/
+
+- 4.2BSD Vax 11/780 simulator: https://sourceforge.net/projects/bsd42/
 
 - The Traditional Vi: https://ex-vi.sourceforge.net/
 

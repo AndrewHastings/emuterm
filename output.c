@@ -442,7 +442,6 @@ struct tcap {
 	"ds", AC_FMT,    N(""),		/* ignore */
 	"ei", AC_FMT,    N("\e[4l"),	/* ANSI replace mode */
 	"fs", AC_FMT,    N("\e\\"),	/* DEC string terminator */
-	"ho", AC_FMT,    N(ANSI_HOME),
 	"ic", AC_FMT,    N("\e[@"),	/* ANSI insert character */
 	"im", AC_FMT,    N("\e[4h"),	/* ANSI insert mode */
 	"ke", AC_FMT,    N(""),		/* ignore */
@@ -489,6 +488,71 @@ char *get_strcap(char *cap)
 	if (*rv == '*')
 		rv++;
 	return rv;
+}
+
+
+/* returns "cm" to row 0 col 0 without using "up" or "le" capabilities */
+char *tgoto_home(void)
+{
+	static char buf[64];
+	char *fmt, *s = buf;
+	unsigned tmp, a1 = 0, a2 = 0;
+	char c;
+
+	if (!(fmt = get_strcap("cm")))		/* no "cm"? */
+		return NULL;
+
+	while (c = *fmt++) {
+		/* not an argument format? */
+		if (c != '%' || *fmt == '%') {
+			*s++ = c;
+			if (c == '%')		/* advance past "%%" */
+				fmt++;
+			continue;
+		}
+
+		switch (c = *fmt++) {
+		    case '+':
+			if (!(c = *fmt++))	/* premature end of format */
+				return NULL;
+			a1 += c;
+			/* FALL THRU */
+		    case '.':
+			*s++ = a1 ? a1 : 0200;	/* use '\200' instead of '\0' */
+			break;
+
+		    case '2':
+			s += sprintf(s, "%02u", a1);
+			break;
+
+		    case '3':
+			s += sprintf(s, "%03u", a1);
+			break;
+
+		    case 'd':
+			s += sprintf(s, "%u", a1);
+			break;
+
+		    case 'i':
+			a1++;
+			a2++;
+			continue;
+
+		    case 'r':
+			tmp = a1;
+			a1 = a2;
+			a2 = tmp;
+			continue;
+
+		    default:			/* invalid format char */
+			return NULL;
+		}
+
+		a1 = a2;			/* get next argument */
+	}
+
+	*s = '\0';
+	return buf;
 }
 
 
@@ -582,6 +646,17 @@ char *set_termtype(char *term, struct winsize *ws, char *errbuf)
 				"Termcap '%s' capability unsupported: %s",
 				tp->tc_name, err);
 			return errbuf;
+		}
+	}
+
+	/* if "ho" differs from "cm" to (0,0), add it */
+	if (cp = get_strcap("ho")) {
+		if (!(s = tgoto_home()) || strcmp(cp, s) != 0) {
+			if (err = add_parse("ho", cp, AC_FMT, ANSI_HOME)) {
+				sprintf(errbuf, "Termcap 'ho' capability "
+						"unsupported: %s", err);
+				return errbuf;
+			}
 		}
 	}
 
