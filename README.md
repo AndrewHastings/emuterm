@@ -46,6 +46,12 @@ sequences.)
 
 Caveats:
 
+- For best results, resize the ANSI terminal emulator in which **emuterm**
+is running to match the number of columns of the old serial terminal.
+On startup, **emuterm** sends an ANSI control sequence to set the right
+margin, but many ANSI terminal emulators do not recognize it. (Most old
+serial terminals are 80 columns.)
+
 - The modern **vim** and **ncurses** have some limitations in supporting
 old serial terminals that the original BSD **vi** and **curses** did *not*
 have. In particular, **vim** requires the termcap "cm" capability while
