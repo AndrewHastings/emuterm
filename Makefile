@@ -15,6 +15,10 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 
+# If your build fails because of a missing "asan" library, try:
+#   make clean
+#   make CFLAGS=
+
 CFLAGS=-g -fsanitize=address -Werror -Wunused-variable
 
 HDRS = emuterm.h input.h output.h termcap.h
